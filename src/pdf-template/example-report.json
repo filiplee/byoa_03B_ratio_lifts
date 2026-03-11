@@ -1,0 +1,167 @@
+{
+  "units": "kg",
+  "date": "2026-03-09",
+  "initials": "",
+  "bodyweight": 73,
+  "experience": "Intermediate",
+  "training_frequency": "3-4",
+  "primary_goal": "Strength",
+  "lifts": [
+    {
+      "id": "squat",
+      "name": "Squat",
+      "method": "weight_reps",
+      "weight": 80,
+      "reps": 3,
+      "input_source": "weight_reps"
+    },
+    {
+      "id": "bench",
+      "name": "Bench Press",
+      "method": "weight_reps",
+      "weight": 60,
+      "reps": 5,
+      "input_source": "weight_reps"
+    },
+    {
+      "id": "deadlift",
+      "name": "Deadlift",
+      "method": "weight_reps",
+      "weight": 90,
+      "reps": 3,
+      "input_source": "weight_reps"
+    },
+    {
+      "id": "press",
+      "name": "Overhead Press",
+      "method": "weight_reps",
+      "weight": 50,
+      "reps": 5,
+      "input_source": "weight_reps"
+    }
+  ],
+  "computed_1rms": [
+    {
+      "id": "squat",
+      "name": "Squat",
+      "oneRM": 88,
+      "method": "epley"
+    },
+    {
+      "id": "bench",
+      "name": "Bench Press",
+      "oneRM": 70,
+      "method": "epley"
+    },
+    {
+      "id": "deadlift",
+      "name": "Deadlift",
+      "oneRM": 99,
+      "method": "epley"
+    },
+    {
+      "id": "press",
+      "name": "Overhead Press",
+      "oneRM": 58.3,
+      "method": "epley"
+    }
+  ],
+  "ratios": [
+    {
+      "id": "bench_to_squat",
+      "label": "Bench : Squat",
+      "value": 0.8
+    },
+    {
+      "id": "squat_to_deadlift",
+      "label": "Squat : Deadlift",
+      "value": 0.89
+    },
+    {
+      "id": "press_to_bench",
+      "label": "Press : Bench",
+      "value": 0.83
+    }
+  ],
+  "flags": [
+    {
+      "id": "typical_bench_squat",
+      "label": "Bench : Squat",
+      "value": 0.8,
+      "message": "Bench : Squat within typical range."
+    },
+    {
+      "id": "typical_squat_deadlift",
+      "label": "Squat : Deadlift",
+      "value": 0.89,
+      "message": "Squat : Deadlift within typical range."
+    },
+    {
+      "id": "press_strong",
+      "label": "Press : Bench",
+      "value": 0.83,
+      "message": "Press strong relative to bench."
+    }
+  ],
+  "confidence": "High",
+  "confidence_explanation": "High: 4 lifts, experience, and bodyweight provided.",
+  "overall_summary": "Press strong relative to bench. Focus on priorities below.",
+  "one_line_diagnosis": "Press strong relative to bench.",
+  "priorities": [
+    "RDL 3x6",
+    "Glute bridge 3x8",
+    "Hamstring curl 3x10"
+  ],
+  "accessories": [
+    {
+      "name": "RDL",
+      "setsReps": "3x6",
+      "cue": "Hinge at hips, slight knee bend."
+    },
+    {
+      "name": "Glute bridge",
+      "setsReps": "3x8",
+      "cue": "Squeeze glutes at top."
+    },
+    {
+      "name": "Hamstring curl",
+      "setsReps": "3x10",
+      "cue": "Control the eccentric."
+    }
+  ],
+  "next_steps": "Continue training. Add more lifts if you want broader ratio diagnostics.",
+  "lift_percentiles": [
+    {
+      "id": "squat",
+      "name": "Squat",
+      "ratioBW": 1.21,
+      "percentile": 50
+    },
+    {
+      "id": "bench",
+      "name": "Bench Press",
+      "ratioBW": 0.96,
+      "percentile": 50
+    },
+    {
+      "id": "deadlift",
+      "name": "Deadlift",
+      "ratioBW": 1.36,
+      "percentile": 50
+    },
+    {
+      "id": "press",
+      "name": "Overhead Press",
+      "ratioBW": 0.8,
+      "percentile": 50
+    }
+  ],
+  "percentile_caption": "Percentiles derived from [data source]. Shown for context — heuristics only.",
+  "how_ratios_work_url": "#",
+  "qr_placeholder": "[QR code URL]",
+  "link_placeholder": "[https://ratio-lifts.app/how-ratios-work]",
+  "save_link": "#",
+  "micro_plan_link": "#",
+  "subscribe_link": "#",
+  "coach_link": "#"
+}

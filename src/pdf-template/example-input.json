@@ -1,0 +1,13 @@
+{
+  "units": "kg",
+  "bodyweight": 73,
+  "experience": "Intermediate",
+  "training_frequency": "3-4",
+  "primary_goal": "Strength",
+  "lifts": [
+    { "id": "squat", "name": "Squat", "method": "weight_reps", "weight": 80, "reps": 3 },
+    { "id": "bench", "name": "Bench Press", "method": "weight_reps", "weight": 60, "reps": 5 },
+    { "id": "deadlift", "name": "Deadlift", "method": "weight_reps", "weight": 90, "reps": 3 },
+    { "id": "press", "name": "Overhead Press", "method": "weight_reps", "weight": 50, "reps": 5 }
+  ]
+}

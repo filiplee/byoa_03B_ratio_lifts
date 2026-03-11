@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="stylesheet" href="/fonts/web/inter.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ratio Lifts — Strength Report</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            accent: '#5eead4',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    :root { --accent: #5eead4; --bg: #334155; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .pdf-page { break-after: page; page-break-after: always; }
+      .pdf-page * { break-inside: avoid; }
+      @page { size: A4; margin: 10mm; }
+      @media (max-width: 1px) { @page { size: letter; } }
+    }
+    .pdf-page {
+      width: 210mm;
+      min-height: 297mm;
+      padding: 10mm;
+      font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+      font-size: 9px;
+      font-weight: 300;
+      color: #ffffff;
+      background-color: var(--bg);
+      box-sizing: border-box;
+    }
+    .trace-line { font-family: ui-monospace, monospace; font-size: 8px; color: #94a3b8; }
+    .tooltip-wrap { position: relative; }
+    .tooltip-text {
+      visibility: hidden; position: absolute; bottom: 100%; left: 0;
+      background: #475569; color: white; padding: 4px 6px; font-size: 8px;
+      border-radius: 4px; max-width: 200px; z-index: 10; margin-bottom: 2px;
+    }
+    .tooltip-wrap:hover .tooltip-text { visibility: visible; }
+    .badge-high { background: rgba(94, 234, 212, 0.2); color: #5eead4; border-color: rgba(94, 234, 212, 0.4); }
+    .badge-medium { background: rgba(252, 211, 77, 0.2); color: #fcd34d; border-color: rgba(252, 211, 77, 0.4); }
+    .badge-low { background: rgba(248, 113, 113, 0.2); color: #f87171; border-color: rgba(248, 113, 113, 0.4); }
+    .bar-fill { background: var(--accent); height: 6px; border-radius: 2px; }
+    .bar-high { background: #5eead4; }
+    .bar-amber { background: #fcd34d; }
+    .bar-red { background: #f87171; }
+  </style>
+</head>
+<body class="bg-slate-700">
+  <div class="pdf-page max-w-[210mm] mx-auto bg-slate-700 text-white">
+    <!-- Header -->
+    <header class="border-b border-slate-500 pb-1.5 mb-3 flex justify-between items-baseline">
+      <div>
+        <h1 class="text-base font-medium" style="color: var(--accent);">Ratio Lifts</h1>
+        <p class="text-[10px] text-slate-300">Strength Report — {{date}}{{initials_suffix}}</p>
+      </div>
+      <div class="tooltip-wrap">
+        <span class="text-[10px] text-slate-400 underline cursor-help">How to read this report</span>
+        <span class="tooltip-text">Ratios are diagnostic heuristics, not definitive science. They vary by body type, training age, and sport. Confidence reflects data completeness. Use soft language: "may indicate", "consider".</span>
+      </div>
+    </header>
+
+    <div class="flex gap-4">
+      <!-- Left column: Inputs & Calculations -->
+      <div class="flex-1 min-w-0">
+        <section class="mb-3">
+          <h2 class="text-xs font-medium text-slate-200 mb-1.5">Inputs trace</h2>
+          <ul class="text-[10px] text-slate-300 space-y-0.5">
+            <li>Units: {{units}}</li>
+            <li>Experience: {{experience}}</li>
+            {{bodyweight_line}}
+            <li>Training frequency: {{training_frequency}}/wk</li>
+            <li>Primary goal: {{primary_goal}}</li>
+          </ul>
+        </section>
+
+        <section class="mb-3">
+          <h2 class="text-xs font-medium text-slate-200 mb-1.5">1RMs & calculation trace</h2>
+          <p class="text-[9px] text-slate-400 mb-1">1RM = weight × (1 + reps/30) — Epley formula. Round to 1 decimal.</p>
+          <table class="w-full text-[10px] text-left">
+            <thead>
+              <tr class="border-b border-slate-500">
+                <th class="py-0.5 font-medium text-slate-200">Lift</th>
+                <th class="py-0.5 font-medium text-slate-200">Input</th>
+                <th class="py-0.5 font-medium text-slate-200">Source</th>
+                <th class="py-0.5 font-medium text-slate-200">1RM</th>
+              </tr>
+            </thead>
+            <tbody class="text-slate-200">
+              {{lifts_table_rows}}
+            </tbody>
+          </table>
+        </section>
+
+        <section class="mb-3">
+          <h2 class="text-xs font-medium text-slate-200 mb-1.5">Computed ratios</h2>
+          <p class="text-[9px] text-slate-400 mb-1"><a href="{{how_ratios_work_url}}" class="underline" style="color: var(--accent);">How ratios work</a></p>
+          {{ratios_section}}
+        </section>
+
+        <section class="mb-3">
+          <h2 class="text-xs font-medium text-slate-200 mb-1.5">How calculated</h2>
+          <p class="text-[9px] text-slate-400">bench_to_squat = bench1RM/squat1RM · squat_to_deadlift = squat1RM/deadlift1RM · press_to_bench = press1RM/bench1RM. Display 2 decimals.</p>
+        </section>
+
+        {{missing_lifts_banner}}
+        {{warmup_hint}}
+        {{squat_deadlift_parity_note}}
+        {{squat_dominant_diagnosis_warning}}
+      </div>
+
+      <!-- Right column: Summary, Diagnosis, Actions -->
+      <div class="flex-1 min-w-0">
+        <section class="mb-3">
+          <span class="inline-block rounded px-1.5 py-0.5 text-[9px] font-medium border {{confidence_badge_class}}">
+            Confidence: {{confidence}}
+          </span>
+          <p class="text-[8px] text-slate-400 mt-0.5">{{confidence_explanation}}</p>
+        </section>
+
+        <section class="mb-3">
+          <h2 class="text-xs font-medium text-slate-200 mb-1.5">Overall summary</h2>
+          <p class="text-[10px] text-slate-200">{{overall_summary}}</p>
+        </section>
+
+        <section class="mb-3">
+          <h2 class="text-xs font-medium text-slate-200 mb-1.5">Interpretation & priority</h2>
+          <div class="rounded p-2 border border-teal-500/40" style="background: rgba(94, 234, 212, 0.1);">
+            <p class="text-[10px] font-medium text-slate-100">{{one_line_diagnosis}}</p>
+          </div>
+        </section>
+
+        <!-- Percentile bar chart (normalized to bodyweight) -->
+        <section class="mb-3">
+          <h2 class="text-xs font-medium text-slate-200 mb-1.5">Lift percentiles (× bodyweight)</h2>
+          {{percentile_bars}}
+          <p class="text-[8px] text-slate-400 mt-1 italic">{{percentile_caption}}</p>
+        </section>
+
+        <section class="mb-3">
+          <h2 class="text-xs font-medium text-slate-200 mb-1.5">Flags & thresholds</h2>
+          {{flags_section}}
+        </section>
+
+        <section class="mb-3">
+          <h2 class="text-xs font-medium text-slate-200 mb-1.5">Top 3 priorities</h2>
+          <ol class="list-decimal list-inside text-[10px] text-slate-200 space-y-0.5">
+            {{priorities_list}}
+          </ol>
+        </section>
+
+        <section class="mb-3">
+          <h2 class="text-xs font-medium text-slate-200 mb-1.5">Accessory exercises (sets/reps, cues)</h2>
+          <ul class="text-[10px] text-slate-200 space-y-0.5">
+            {{accessories_list}}
+          </ul>
+        </section>
+
+        <section class="mb-3">
+          <h2 class="text-xs font-medium text-slate-200 mb-1.5">Next steps</h2>
+          <p class="text-[10px] text-slate-300">{{next_steps}}</p>
+        </section>
+
+        <!-- CTAs -->
+        <section class="mb-3 flex flex-wrap gap-2">
+          <a href="{{save_link}}" class="inline-flex items-center gap-1 px-2 py-1 text-[9px] font-medium rounded border-2 text-slate-800" style="background: var(--accent); border-color: var(--accent);">Save scenario</a>
+          <a href="{{micro_plan_link}}" class="inline-flex items-center gap-1 px-2 py-1 text-[9px] font-medium rounded border-2" style="border-color: var(--accent); color: var(--accent);">Get 4‑week micro plan</a>
+          <a href="{{coach_link}}" class="inline-flex items-center gap-1 px-2 py-1 text-[9px] font-medium rounded border-2" style="border-color: var(--accent); color: var(--accent);">Share with coach</a>
+        </section>
+        <p class="text-[8px] text-slate-400">QR: {{qr_placeholder}} · Link: {{link_placeholder}}</p>
+      </div>
+    </div>
+
+    <!-- Safety note -->
+    <div class="mt-3 p-2 rounded border border-slate-500/50" style="background: rgba(71, 85, 105, 0.5);">
+      <p class="text-[9px] font-medium text-slate-200">Safety note</p>
+      <p class="text-[9px] text-slate-300 mt-0.5">Informational only — not medical advice. Consult a professional for injuries.</p>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-3 pt-2 border-t border-slate-500 text-[8px] text-slate-400">
+      <p>Ratio Lifts — Strength diagnostics. <a href="{{save_link}}" class="underline" style="color: var(--accent);">Save scenario</a> · <a href="{{subscribe_link}}" class="underline" style="color: var(--accent);">Subscribe</a> · <a href="{{coach_link}}" class="underline" style="color: var(--accent);">Connect to coach</a></p>
+      <p class="mt-0.5">Privacy: Your data is not stored. This report is generated locally.</p>
+    </footer>
+  </div>
+</body>
+</html>

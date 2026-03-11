@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ratio-lifts.app/input-data.json",
+  "title": "Ratio Lifts Input Data",
+  "description": "Raw input data for the Ratio Lifts report. Used before computation and validation.",
+  "type": "object",
+  "required": ["units", "experience", "training_frequency", "primary_goal", "lifts"],
+  "properties": {
+    "units": {
+      "type": "string",
+      "enum": ["kg", "lb"],
+      "description": "Weight units for all numeric values"
+    },
+    "bodyweight": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Bodyweight in units. Optional but required for High confidence and percentile normalization."
+    },
+    "experience": {
+      "type": "string",
+      "enum": ["Beginner", "Intermediate", "Advanced"],
+      "description": "Training experience level"
+    },
+    "training_frequency": {
+      "type": "string",
+      "enum": ["1-2", "3-4", "5+"],
+      "description": "Sessions per week"
+    },
+    "primary_goal": {
+      "type": "string",
+      "enum": ["Strength", "Hypertrophy", "Power", "Rehab"],
+      "description": "Primary training goal"
+    },
+    "injury_notes": {
+      "type": "string",
+      "description": "Optional notes for injury fallbacks (e.g. 'knee', 'lower back', 'shoulder')"
+    },
+    "lifts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "method"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": ["squat", "bench", "deadlift", "press"],
+            "description": "Canonical lift identifier"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name (e.g. 'Squat', 'Bench Press')"
+          },
+          "method": {
+            "type": "string",
+            "enum": ["weight_reps", "one_rm"],
+            "description": "Input method: weight_reps uses Epley; one_rm uses provided value"
+          },
+          "weight": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Required when method is weight_reps"
+          },
+          "reps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20,
+            "description": "Required when method is weight_reps"
+          },
+          "one_rm": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Required when method is one_rm"
+          }
+        },
+        "oneOf": [
+          {
+            "properties": { "method": { "const": "weight_reps" } },
+            "required": ["weight", "reps"]
+          },
+          {
+            "properties": { "method": { "const": "one_rm" } },
+            "required": ["one_rm"]
+          }
+        ]
+      }
+    }
+  }
+}

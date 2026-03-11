@@ -1,0 +1,108 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Accessory mapping for Ratio Lifts flags. Priorities and injury fallbacks.",
+  "bench_dominant": {
+    "priorities": [
+      { "name": "Squat strength", "setsReps": "3x5", "cue": "Focus on depth and hip drive." },
+      { "name": "Lower-body volume", "setsReps": "3x8", "cue": "Tempo control." },
+      { "name": "Hip drive work", "setsReps": "3x10", "cue": "Glute activation." }
+    ],
+    "fallback_if_knee_injury": [
+      { "name": "Romanian deadlift", "setsReps": "3x6", "cue": "Hinge pattern." },
+      { "name": "Glute bridge", "setsReps": "3x8", "cue": "Squeeze at top." }
+    ],
+    "fallback_if_lower_back": [],
+    "fallback_if_shoulder": []
+  },
+  "bench_lagging": {
+    "priorities": [
+      { "name": "Horizontal push volume", "setsReps": "3x8", "cue": "Full ROM." },
+      { "name": "Close-grip bench", "setsReps": "3x6", "cue": "Elbows tucked, triceps focus." },
+      { "name": "Triceps work", "setsReps": "3x10", "cue": "Control descent." }
+    ],
+    "fallback_if_knee_injury": [],
+    "fallback_if_lower_back": [],
+    "fallback_if_shoulder": [
+      { "name": "Landmine press", "setsReps": "3x6", "cue": "Arc path, less shoulder stress." },
+      { "name": "Push-ups", "setsReps": "3x10", "cue": "Scapular control." }
+    ]
+  },
+  "deadlift_dominant": {
+    "priorities": [
+      { "name": "RDL", "setsReps": "3x6", "cue": "Hinge at hips, slight knee bend." },
+      { "name": "Glute bridge", "setsReps": "3x8", "cue": "Squeeze glutes at top." },
+      { "name": "Hamstring curl", "setsReps": "3x10", "cue": "Control the eccentric." }
+    ],
+    "fallback_if_knee_injury": [],
+    "fallback_if_lower_back": [
+      { "name": "Hip thrust", "setsReps": "3x6", "cue": "Neutral spine." },
+      { "name": "Single-leg RDL light", "setsReps": "3x8", "cue": "Balance and hinge." }
+    ],
+    "fallback_if_shoulder": []
+  },
+  "squat_dominant": {
+    "priorities": [
+      { "name": "Deadlift volume", "setsReps": "3x5", "cue": "Focus on lockout and bar path." },
+      { "name": "Romanian deadlift", "setsReps": "3x6", "cue": "Hinge pattern, posterior chain." },
+      { "name": "Deficit deadlift", "setsReps": "3x3", "cue": "Technique work from floor." }
+    ],
+    "fallback_if_knee_injury": [
+      { "name": "RDL", "setsReps": "3x6", "cue": "Hinge pattern." },
+      { "name": "Hip thrust", "setsReps": "3x8", "cue": "Glute focus." }
+    ],
+    "fallback_if_lower_back": [
+      { "name": "Rack pull", "setsReps": "3x5", "cue": "Reduce range, build lockout." },
+      { "name": "Hip thrust", "setsReps": "3x8", "cue": "Neutral spine." }
+    ],
+    "fallback_if_shoulder": []
+  },
+  "press_weak": {
+    "priorities": [
+      { "name": "Seated DB press", "setsReps": "3x6", "cue": "Press up, don't sway." },
+      { "name": "Face pulls", "setsReps": "3x12", "cue": "External rotation at end." },
+      { "name": "Lateral raises", "setsReps": "3x10", "cue": "Lead with elbows." }
+    ],
+    "fallback_if_knee_injury": [],
+    "fallback_if_lower_back": [],
+    "fallback_if_shoulder": [
+      { "name": "Landmine press", "setsReps": "3x6", "cue": "Arc path reduces impingement." },
+      { "name": "Band pull-aparts", "setsReps": "3x15", "cue": "Scapular retraction." }
+    ]
+  },
+  "press_strong": {
+    "priorities": [
+      { "name": "Bench volume", "setsReps": "3x6", "cue": "Full ROM, controlled descent." },
+      { "name": "Incline bench", "setsReps": "3x8", "cue": "Upper chest focus." },
+      { "name": "Triceps work", "setsReps": "3x10", "cue": "Control descent." }
+    ],
+    "fallback_if_knee_injury": [],
+    "fallback_if_lower_back": [],
+    "fallback_if_shoulder": [
+      { "name": "Dumbbell bench", "setsReps": "3x8", "cue": "Greater ROM, less stress." }
+    ]
+  },
+  "typical_bench_squat": {
+    "priorities": [
+      { "name": "Maintain balance", "setsReps": "—", "cue": "Keep consistent training." }
+    ],
+    "fallback_if_knee_injury": [],
+    "fallback_if_lower_back": [],
+    "fallback_if_shoulder": []
+  },
+  "typical_squat_deadlift": {
+    "priorities": [
+      { "name": "Maintain balance", "setsReps": "—", "cue": "Keep consistent training." }
+    ],
+    "fallback_if_knee_injury": [],
+    "fallback_if_lower_back": [],
+    "fallback_if_shoulder": []
+  },
+  "typical_press_bench": {
+    "priorities": [
+      { "name": "Maintain balance", "setsReps": "—", "cue": "Keep consistent training." }
+    ],
+    "fallback_if_knee_injury": [],
+    "fallback_if_lower_back": [],
+    "fallback_if_shoulder": []
+  }
+}

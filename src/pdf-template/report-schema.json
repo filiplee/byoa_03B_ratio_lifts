@@ -1,0 +1,140 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ratio-lifts.app/report-data.json",
+  "title": "Ratio Lifts Report Data",
+  "description": "Input data contract for the one-page PDF report template",
+  "type": "object",
+  "required": ["units", "date", "experience", "training_frequency", "primary_goal", "lifts", "confidence", "one_line_diagnosis"],
+  "properties": {
+    "units": {
+      "type": "string",
+      "enum": ["kg", "lb"],
+      "description": "Weight units"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Report generation date"
+    },
+    "initials": {
+      "type": "string",
+      "maxLength": 4,
+      "description": "Optional user initials"
+    },
+    "bodyweight": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Optional bodyweight in units"
+    },
+    "experience": {
+      "type": "string",
+      "enum": ["Beginner", "Intermediate", "Advanced"],
+      "description": "Training experience level"
+    },
+    "training_frequency": {
+      "type": "string",
+      "enum": ["1-2", "3-4", "5+"],
+      "description": "Sessions per week"
+    },
+    "primary_goal": {
+      "type": "string",
+      "enum": ["Strength", "Hypertrophy", "Power", "Rehab"],
+      "description": "Primary training goal"
+    },
+    "lifts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "method"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": ["squat", "bench", "deadlift", "press"]
+          },
+          "name": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "enum": ["weight_reps", "one_rm"]
+          },
+          "weight": { "type": "number", "minimum": 0 },
+          "reps": { "type": "integer", "minimum": 1, "maximum": 20 },
+          "one_rm": { "type": "number", "minimum": 0 },
+          "input_source": { "type": "string", "description": "weight_reps or one_rm" }
+        }
+      }
+    },
+    "computed_1rms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "oneRM", "method"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "oneRM": { "type": "number" },
+          "method": { "type": "string", "enum": ["epley", "user_provided"] }
+        }
+      }
+    },
+    "ratios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "value"],
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "value": { "type": "number" }
+        }
+      }
+    },
+    "flags": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "value", "message"],
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "value": { "type": "number" },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["High", "Medium", "Low"]
+    },
+    "one_line_diagnosis": {
+      "type": "string"
+    },
+    "priorities": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 3
+    },
+    "accessories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "setsReps": { "type": "string" },
+          "cue": { "type": "string" }
+        }
+      }
+    },
+    "how_ratios_work_url": { "type": "string" },
+    "confidence_explanation": { "type": "string" },
+    "overall_summary": { "type": "string" },
+    "next_steps": { "type": "string" },
+    "qr_placeholder": { "type": "string" },
+    "link_placeholder": { "type": "string" },
+    "save_link": { "type": "string" },
+    "subscribe_link": { "type": "string" },
+    "coach_link": { "type": "string" }
+  }
+}
