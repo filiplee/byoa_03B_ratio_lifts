@@ -22,4 +22,7 @@ export const defaultFormState: FormState = {
   injury: false,
   injury_notes: undefined,
   equipment: [],
+  coach_mode: false,
+  athlete_name: undefined,
+  coach_name: undefined,
 }

@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf'
 import type { FormState, DiagnosticResult } from './types'
-import { IDEAL_RATIOS } from './calculations'
+import { IDEAL_RATIOS, getIdealRangeForGoal, getRadarChartData, getHeadlineDiagnosis } from './calculations'
 
 const DISCLAIMER =
   'Informational only — not medical advice. Consult a professional for injuries.'
@@ -45,22 +45,55 @@ function arrayBufferToBase64(buf: ArrayBuffer): string {
   return btoa(binary)
 }
 
-let fontsReady: Promise<void> | null = null
-async function ensurePdfFonts(doc: jsPDF) {
+let fontsReady: Promise<boolean> | null = null
+/** Returns true if custom fonts loaded, false if fell back to system font. */
+async function ensurePdfFonts(doc: jsPDF): Promise<boolean> {
   if (!fontsReady) {
     fontsReady = (async () => {
-      const [regular, semiBold] = await Promise.all([
-        fetch('/fonts/extras/ttf/Inter-Regular.ttf').then((r) => r.arrayBuffer()),
-        fetch('/fonts/extras/ttf/Inter-SemiBold.ttf').then((r) => r.arrayBuffer()),
-      ])
-      doc.addFileToVFS('Inter-Regular.ttf', arrayBufferToBase64(regular))
-      doc.addFileToVFS('Inter-SemiBold.ttf', arrayBufferToBase64(semiBold))
-      doc.addFont('Inter-Regular.ttf', 'Inter', 'normal')
-      doc.addFont('Inter-SemiBold.ttf', 'Inter', 'bold')
+      try {
+        const [regularRes, semiBoldRes] = await Promise.all([
+          fetch('/fonts/extras/ttf/Inter-Regular.ttf'),
+          fetch('/fonts/extras/ttf/Inter-SemiBold.ttf'),
+        ])
+        if (!regularRes.ok) {
+          console.warn(
+            '[Ratio Lifts] PDF font failed to load: Inter-Regular.ttf',
+            regularRes.status,
+            regularRes.statusText
+          )
+          return false
+        }
+        if (!semiBoldRes.ok) {
+          console.warn(
+            '[Ratio Lifts] PDF font failed to load: Inter-SemiBold.ttf',
+            semiBoldRes.status,
+            semiBoldRes.statusText
+          )
+          return false
+        }
+        const [regular, semiBold] = await Promise.all([
+          regularRes.arrayBuffer(),
+          semiBoldRes.arrayBuffer(),
+        ])
+        doc.addFileToVFS('Inter-Regular.ttf', arrayBufferToBase64(regular))
+        doc.addFileToVFS('Inter-SemiBold.ttf', arrayBufferToBase64(semiBold))
+        doc.addFont('Inter-Regular.ttf', 'Inter', 'normal')
+        doc.addFont('Inter-SemiBold.ttf', 'Inter', 'bold')
+        return true
+      } catch (err) {
+        console.warn(
+          '[Ratio Lifts] PDF font fetch failed, using system font:',
+          err instanceof Error ? err.message : err
+        )
+        return false
+      }
     })()
   }
-  await fontsReady
+  return fontsReady
 }
+
+/** Set by ensurePdfFonts; used so PDF can fall back to Helvetica if font fetch fails. */
+let pdfFontName: 'Inter' | 'Helvetica' = 'Helvetica'
 
 function setInk(doc: jsPDF) {
   doc.setTextColor(PALETTE.ink.r, PALETTE.ink.g, PALETTE.ink.b)
@@ -100,7 +133,7 @@ function ensureSpace(doc: jsPDF, y: number, neededH: number) {
 
 function sectionHeader(doc: jsPDF, title: string, y: number) {
   doc.setFontSize(FONT.section)
-  doc.setFont('Inter', 'bold')
+  doc.setFont(pdfFontName, 'bold')
   setInk(doc)
   doc.text(title, MARGIN, y)
   divider(doc, y + 1.5)
@@ -108,7 +141,7 @@ function sectionHeader(doc: jsPDF, title: string, y: number) {
 
 function actionLine(doc: jsPDF, text: string, y: number): number {
   const x = MARGIN
-  doc.setFont('Inter', 'bold')
+  doc.setFont(pdfFontName, 'bold')
   doc.setFontSize(FONT.small)
   const labelStr = 'Action: '
   const labelWidth = doc.getTextWidth(labelStr)
@@ -128,7 +161,7 @@ function actionLine(doc: jsPDF, text: string, y: number): number {
   setAccent(doc)
   doc.text(labelStr, x + PAD, contentTop, opts)
 
-  doc.setFont('Inter', 'normal')
+  doc.setFont(pdfFontName, 'normal')
   doc.setFontSize(FONT.small)
   setMuted(doc)
   doc.text(lines[0]!, x + PAD + labelWidth, contentTop, opts)
@@ -142,24 +175,44 @@ function actionLine(doc: jsPDF, text: string, y: number): number {
 export function generateReportPDF(
   form: FormState,
   result: DiagnosticResult,
-  options?: { initials?: string }
+  options?: {
+    initials?: string
+    coachMode?: boolean
+    coachName?: string
+    athleteName?: string
+    coachNotes?: string
+  }
 ): void {
   ;(async () => {
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-    await ensurePdfFonts(doc)
+    const customFontsLoaded = await ensurePdfFonts(doc)
+    pdfFontName = customFontsLoaded ? 'Inter' : 'Helvetica'
+    if (!customFontsLoaded) {
+      alert(
+        'PDF export could not load custom fonts. The report was generated using the system font. You can try again or save as is.'
+      )
+    }
   let y = MARGIN
 
   paintBackground(doc)
 
   // ─── Header ─────────────────────────────────────────────────────────────
   doc.setFontSize(FONT.section + 2)
-  doc.setFont('Inter', 'bold')
-  doc.text('Ratio Lifts', MARGIN, y)
+  doc.setFont(pdfFontName, 'bold')
+  doc.text(options?.coachMode ? 'Strength Ratio Assessment Report' : 'Ratio Lifts', MARGIN, y)
   y += LINE_H
 
   doc.setFontSize(FONT.tiny)
   setMuted(doc)
-  doc.setFont('Inter', 'normal')
+  doc.setFont(pdfFontName, 'normal')
+  const coachLineParts = [
+    options?.coachMode && options.coachName ? `Coach: ${options.coachName}` : null,
+    options?.coachMode && options.athleteName ? `Athlete: ${options.athleteName}` : null,
+  ].filter(Boolean) as string[]
+  if (coachLineParts.length > 0) {
+    doc.text(coachLineParts.join('  ·  '), MARGIN, y)
+    y += LINE_H
+  }
   doc.text(
     `${new Date().toLocaleDateString()}${options?.initials ? ` · ${options.initials}` : ''}  ·  ${form.units}  ·  ${result.confidence} confidence`,
     MARGIN,
@@ -172,9 +225,10 @@ export function generateReportPDF(
   const insightW = CONTENT_W
   const insightY = y
   const diagWrapW = insightW - 2 * PAD
-  doc.setFont('Inter', 'normal')
+  doc.setFont(pdfFontName, 'normal')
   doc.setFontSize(FONT.small)
-  const diag = doc.splitTextToSize(result.oneLineDiagnosis, diagWrapW)
+  const headline = getHeadlineDiagnosis(result.oneRMs, result.flags)
+  const diag = doc.splitTextToSize(headline, diagWrapW)
   const titleH = LINE_HEIGHT_SMALL   // same scale as Action label
   const bodyH = Math.max(1, diag.length) * LINE_HEIGHT_SMALL
   const insightContentH = titleH + 1.5 + bodyH
@@ -188,12 +242,12 @@ export function generateReportPDF(
   const insightContentTop = insightY + (insightH - insightContentH) / 2
   const opts = { baseline: 'top' as const }
 
-  doc.setFont('Inter', 'bold')
+  doc.setFont(pdfFontName, 'bold')
   doc.setFontSize(FONT.small)
   setInk(doc)
   doc.text('Key takeaway', insightX + PAD, insightContentTop, opts)
 
-  doc.setFont('Inter', 'normal')
+  doc.setFont(pdfFontName, 'normal')
   doc.setFontSize(FONT.small)
   doc.text(diag, insightX + PAD, insightContentTop + titleH + 1.5, opts)
 
@@ -206,13 +260,90 @@ export function generateReportPDF(
   y = actionLine(doc, mainAction, y)
   y += SECTION_GAP - 2
 
+  // ─── Strength profile radar (simple polygon) ────────────────────────────
+  if (result.oneRMs.length > 0) {
+    y = ensureSpace(doc, y, 58)
+    sectionHeader(doc, 'Strength profile (radar)', y)
+    y += LINE_H + 2
+
+    const data = getRadarChartData(result.oneRMs, form.primary_goal, form.bodyweight)
+    const cx = MARGIN + CONTENT_W / 2
+    const cy = y + 26
+    const radius = 18
+
+    // axes
+    doc.setDrawColor(100, 116, 139)
+    doc.setLineWidth(0.2)
+    const n = data.length
+    for (let i = 0; i < n; i++) {
+      const ang = (Math.PI * 2 * i) / n - Math.PI / 2
+      const ax = cx + Math.cos(ang) * radius
+      const ay = cy + Math.sin(ang) * radius
+      doc.line(cx, cy, ax, ay)
+    }
+
+    function polygonPoints(key: 'user' | 'ideal'): [number, number][] {
+      return data.map((d, i) => {
+        const ang = (Math.PI * 2 * i) / n - Math.PI / 2
+        const r = (d[key] / 100) * radius
+        return [cx + Math.cos(ang) * r, cy + Math.sin(ang) * r]
+      })
+    }
+
+    const userPts = polygonPoints('user')
+    const idealPts = polygonPoints('ideal')
+
+    // ideal outline
+    doc.setDrawColor(PALETTE.muted.r, PALETTE.muted.g, PALETTE.muted.b)
+    doc.setLineWidth(0.4)
+    for (let i = 0; i < idealPts.length; i++) {
+      const [x1, y1] = idealPts[i]!
+      const [x2, y2] = idealPts[(i + 1) % idealPts.length]!
+      doc.line(x1, y1, x2, y2)
+    }
+
+    // user outline + light fill
+    doc.setDrawColor(PALETTE.accent.r, PALETTE.accent.g, PALETTE.accent.b)
+    doc.setLineWidth(0.6)
+    for (let i = 0; i < userPts.length; i++) {
+      const [x1, y1] = userPts[i]!
+      const [x2, y2] = userPts[(i + 1) % userPts.length]!
+      doc.line(x1, y1, x2, y2)
+    }
+
+    // labels
+    doc.setFont(pdfFontName, 'normal')
+    doc.setFontSize(FONT.tiny)
+    setMuted(doc)
+    for (let i = 0; i < n; i++) {
+      const ang = (Math.PI * 2 * i) / n - Math.PI / 2
+      const lx = cx + Math.cos(ang) * (radius + 6)
+      const ly = cy + Math.sin(ang) * (radius + 6)
+      const row = data[i]!
+      const label =
+        row.subject === 'BW ratio'
+          ? `BW ${row.oneRM.toFixed(2)}`
+          : `${row.subject} ${Math.round(row.oneRM)}${form.units}`
+      doc.text(label, lx, ly, { align: 'center' })
+    }
+
+    // legend
+    setAccent(doc)
+    doc.text('Your profile', MARGIN, y + 50)
+    setMuted(doc)
+    doc.text(`Ideal for ${form.primary_goal}`, MARGIN + 34, y + 50)
+    setInk(doc)
+    y += 56
+    y += SECTION_GAP - 2
+  }
+
   // ─── 1RM snapshot (simple grid) ─────────────────────────────────────────
   y = ensureSpace(doc, y, 50)
   sectionHeader(doc, '1RM snapshot', y)
   y += LINE_H + 2
 
   // Compact context line (kept minimal, coaching-first)
-  doc.setFont('Inter', 'normal')
+  doc.setFont(pdfFontName, 'normal')
   doc.setFontSize(FONT.tiny)
   setMuted(doc)
   const metaParts = [
@@ -249,7 +380,7 @@ export function generateReportPDF(
 
     const lift = oneRMs[i]
     if (!lift) {
-      doc.setFont('Inter', 'normal')
+      doc.setFont(pdfFontName, 'normal')
       doc.setFontSize(FONT.tiny)
       setMuted(doc)
       const placeholderLines = doc.splitTextToSize('Add another lift to fill this slot', cellTextW)
@@ -266,18 +397,18 @@ export function generateReportPDF(
     const blockH = labelH + 1 + valueH + 0.5 + suffixH
     const contentTop = yy + (cellH - blockH) / 2
 
-    doc.setFont('Inter', 'normal')
+    doc.setFont(pdfFontName, 'normal')
     doc.setFontSize(FONT.tiny)
     setMuted(doc)
     doc.text(labelLines, x + cellPad, contentTop, baseTop)
 
-    doc.setFont('Inter', 'bold')
+    doc.setFont(pdfFontName, 'bold')
     doc.setFontSize(FONT.section + 2)
     setAccent(doc)
     const valueStr = String(lift.oneRM)
     doc.text(valueStr, x + cellPad, contentTop + labelH + 1, baseTop)
 
-    doc.setFont('Inter', 'normal')
+    doc.setFont(pdfFontName, 'normal')
     doc.setFontSize(FONT.small)
     setMuted(doc)
     const suffix = lift.method === 'user_provided' ? 'provided' : 'estimated'
@@ -299,7 +430,7 @@ export function generateReportPDF(
 
     // Minimal key (functional, not decorative)
     // Color key: teal (you), indigo (typical band), grey (scale/background)
-    doc.setFont('Inter', 'normal')
+    doc.setFont(pdfFontName, 'normal')
     doc.setFontSize(FONT.tiny)
     setMuted(doc)
     const sw = 3.5
@@ -331,16 +462,17 @@ export function generateReportPDF(
         crossBodyShown = true
         doc.setFontSize(FONT.tiny)
         setMuted(doc)
-        doc.setFont('Inter', 'normal')
+        doc.setFont(pdfFontName, 'normal')
         doc.text('Lower : Upper (squat/deadlift vs bench/press)', MARGIN, y)
         y += LINE_H
       }
       const ideal = IDEAL_RATIOS[r.id]
+      const idealForGoal = getIdealRangeForGoal(r.id, form.primary_goal)
       const flag = result.flags.find((f) => f.label === r.label)
       const value = r.value as number
 
       doc.setFontSize(FONT.small)
-      doc.setFont('Inter', 'normal')
+      doc.setFont(pdfFontName, 'normal')
       setInk(doc)
       doc.text(r.label, MARGIN, y)
       setMuted(doc)
@@ -354,7 +486,8 @@ export function generateReportPDF(
       doc.rect(barX, y - 2.5, BAR_W, BAR_H, 'F')
       if (ideal) {
         doc.setFillColor(PALETTE.barTypical.r, PALETTE.barTypical.g, PALETTE.barTypical.b)
-        const rangeMatch = ideal.range.match(/^([\d.]+)[–-]([\d.]+)$/)
+        const rangeStr = idealForGoal?.rangeLabel ?? ideal.range
+        const rangeMatch = rangeStr.match(/^([\d.]+)[–-]([\d.]+)$/)
         const bandLo = rangeMatch ? parseFloat(rangeMatch[1]) : ideal.ideal - 0.1
         const bandHi = rangeMatch ? parseFloat(rangeMatch[2]) : ideal.ideal + 0.1
         const lo = Math.max(0, bandLo / scaleMax)
@@ -420,7 +553,7 @@ export function generateReportPDF(
     const contentTop = y + (cardH - contentH) / 2
     let rowY = contentTop
 
-    doc.setFont('Inter', 'bold')
+    doc.setFont(pdfFontName, 'bold')
     doc.setFontSize(FONT.normal)
     setInk(doc)
     const nameLines = doc.splitTextToSize(a.name, cardTextW)
@@ -428,14 +561,14 @@ export function generateReportPDF(
     rowY += nameLines.length * LINE_HEIGHT_NORMAL + 1
 
     if (hasImbalance) {
-      doc.setFont('Inter', 'normal')
+      doc.setFont(pdfFontName, 'normal')
       doc.setFontSize(FONT.tiny)
       setAccent(doc)
       doc.text(`Addresses: ${a.forImbalance}`, MARGIN + cardPad, rowY, cardOpts)
       rowY += LINE_HEIGHT_TINY + 0.5
     }
 
-    doc.setFont('Inter', 'normal')
+    doc.setFont(pdfFontName, 'normal')
     doc.setFontSize(FONT.small)
     setMuted(doc)
     const weightStr = a.suggestedWeight != null ? ` · ${a.suggestedWeight} ${form.units}` : ''
@@ -461,12 +594,12 @@ export function generateReportPDF(
   doc.setFontSize(FONT.tiny)
   setMuted(doc)
   const footer = `Reminder: Retest every 4–6 weeks.`
-  doc.setFont('Inter', 'bold')
+  doc.setFont(pdfFontName, 'bold')
   setAccent(doc)
   doc.text(footer, MARGIN + PAD, y)
   y += LINE_H
 
-  doc.setFont('Inter', 'normal')
+  doc.setFont(pdfFontName, 'normal')
   setMuted(doc)
   const disclaimerLines = doc.splitTextToSize(DISCLAIMER, CONTENT_W - 2 * PAD)
   doc.text(disclaimerLines, MARGIN + PAD, y)
@@ -475,6 +608,18 @@ export function generateReportPDF(
     doc.text('1RM: Epley formula — weight × (1 + reps/30)', MARGIN + PAD, y)
   }
   setInk(doc)
+
+  if (options?.coachMode && options.coachNotes) {
+    y = ensureSpace(doc, y + 6, 30)
+    sectionHeader(doc, 'Coach notes', y)
+    y += LINE_H + 2
+    doc.setFont(pdfFontName, 'normal')
+    doc.setFontSize(FONT.small)
+    setMuted(doc)
+    const notesLines = doc.splitTextToSize(options.coachNotes, CONTENT_W - 2 * PAD)
+    doc.text(notesLines, MARGIN + PAD, y)
+    setInk(doc)
+  }
 
   doc.save('ratio-lifts-report.pdf')
   })()

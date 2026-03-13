@@ -1,0 +1,37 @@
+---
+description: High-level product and architecture overview for the Ratio Lifts MVP app
+alwaysApply: true
+---
+
+# Ratio Lifts App Overview
+
+This repo contains a mobile-first React + TypeScript single-page app that:
+- Accepts barbell lift inputs (Squat, Bench, Deadlift, Overhead Press)
+- Computes estimated 1RMs via the Epley formula (or uses user-provided 1RMs)
+- Derives strength ratios and imbalance flags from those 1RMs
+- Generates a one-page PDF diagnostic with a one-line diagnosis and three accessory exercises
+
+## Core User Flow
+
+1. User enters bodyweight (optional), training experience, and training frequency.
+2. User provides up to four main lifts, either as weight × reps (1–20) or direct 1RM, in kg or lb.
+3. Optional: user marks injury status and free-text injury notes; in coach mode they can add coach and athlete names.
+4. User accepts a short disclaimer and generates a report.
+5. The app computes 1RMs, ratios, flags, confidence level, accessory recommendations, and (when bodyweight is present) heuristic percentiles.
+6. Results are shown in-app (with headline diagnosis, balance score, radar chart) and can be exported as a PDF.
+
+## Key Concepts
+
+- **Ratios and flags**: `src/calculations.ts` uses the Epley formula and thresholds defined in `RULES.md` to compute ratios (e.g. Bench:Squat, Squat:Deadlift, Press:Bench, and lower–upper cross-body ratios) and classify them as typical, lagging, or dominant flags.
+- **Accessories**: For each non-typical flag, the app maps to 3 accessory exercises (with sets/reps, cues, and suggested working weights as % of a related 1RM), with knee/back injury fallbacks.
+- **Confidence**: High/Medium/Low based on how many valid lifts are entered plus bodyweight/experience; lower confidence softens diagnostic language.
+- **Percentiles and radar**: When bodyweight is provided, `calculations.ts` derives heuristic percentiles per lift and produces radar-chart data comparing user vs goal-ideal profiles.
+
+## Architecture Pointers
+
+- `src/App.tsx`: orchestrates form state, coach mode, saved athletes (localStorage), and the “Generate report” flow that calls `runDiagnostic`.
+- `src/calculations.ts`: single source of truth for Epley 1RM, ratios, flags, confidence, balance score, percentiles, and accessory mapping (must follow `RULES.md`).
+- `src/pdf.ts`: jsPDF-based production path for the one-page report (the app’s Export button uses this, not the HTML template).
+- `src/types.ts`: shared types for form state, lifts, diagnostic outputs, and coach-mode saved scenarios.
+- `RULES.md`: canonical spec for all diagnostic and calculation rules; implementations should stay in sync with this document.
+

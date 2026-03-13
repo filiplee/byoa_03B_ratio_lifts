@@ -10,6 +10,7 @@ import type {
   ConfidenceLevel,
   FormState,
   Experience,
+  PrimaryGoal,
 } from './types'
 
 const ROUND_1 = (n: number) => Math.round(n * 10) / 10
@@ -144,6 +145,56 @@ export const IDEAL_RATIOS: Record<string, { ideal: number; range: string }> = {
   deadlift_to_bench: { ideal: 1.5, range: '1.3–1.7' },
   squat_to_press: { ideal: 2.08, range: '1.8–2.4' },
   deadlift_to_press: { ideal: 2.5, range: '2.2–2.8' },
+}
+
+/** Goal-specific ideal ratio ranges for display. */
+export const IDEAL_RATIOS_BY_GOAL: Record<
+  PrimaryGoal,
+  Record<string, { min: number; max: number; rangeLabel: string }>
+> = {
+  Strength: {
+    bench_to_squat: { min: 0.75, max: 0.85, rangeLabel: '0.75–0.85' },
+    squat_to_deadlift: { min: 0.85, max: 1.0, rangeLabel: '0.85–1.0' },
+    deadlift_to_bench: { min: 1.6, max: 1.8, rangeLabel: '1.6–1.8' },
+    press_to_bench: { min: 0.35, max: 0.45, rangeLabel: '0.35–0.45' },
+    squat_to_bench: { min: 1.18, max: 1.33, rangeLabel: '1.18–1.33' },
+    squat_to_press: { min: 1.8, max: 2.4, rangeLabel: '1.8–2.4' },
+    deadlift_to_press: { min: 2.2, max: 2.8, rangeLabel: '2.2–2.8' },
+  },
+  Hypertrophy: {
+    bench_to_squat: { min: 0.7, max: 0.8, rangeLabel: '0.7–0.8' },
+    squat_to_deadlift: { min: 0.8, max: 1.0, rangeLabel: '0.8–1.0' },
+    deadlift_to_bench: { min: 1.5, max: 1.8, rangeLabel: '1.5–1.8' },
+    press_to_bench: { min: 0.35, max: 0.45, rangeLabel: '0.35–0.45' },
+    squat_to_bench: { min: 1.0, max: 1.5, rangeLabel: '1.0–1.5' },
+    squat_to_press: { min: 1.8, max: 2.4, rangeLabel: '1.8–2.4' },
+    deadlift_to_press: { min: 2.2, max: 2.8, rangeLabel: '2.2–2.8' },
+  },
+  Power: {
+    bench_to_squat: { min: 0.7, max: 0.75, rangeLabel: '0.7–0.75' },
+    squat_to_deadlift: { min: 0.9, max: 1.05, rangeLabel: '0.9–1.05' },
+    deadlift_to_bench: { min: 1.5, max: 1.7, rangeLabel: '1.5–1.7' },
+    press_to_bench: { min: 0.35, max: 0.45, rangeLabel: '0.35–0.45' },
+    squat_to_bench: { min: 1.0, max: 1.5, rangeLabel: '1.0–1.5' },
+    squat_to_press: { min: 1.8, max: 2.4, rangeLabel: '1.8–2.4' },
+    deadlift_to_press: { min: 2.2, max: 2.8, rangeLabel: '2.2–2.8' },
+  },
+  Rehab: {
+    bench_to_squat: { min: 0.45, max: 1.1, rangeLabel: '0.45–1.1' },
+    squat_to_deadlift: { min: 0.75, max: 1.05, rangeLabel: '0.75–1.05' },
+    deadlift_to_bench: { min: 1.3, max: 1.9, rangeLabel: '1.3–1.9' },
+    press_to_bench: { min: 0.3, max: 0.5, rangeLabel: '0.3–0.5' },
+    squat_to_bench: { min: 0.9, max: 1.6, rangeLabel: '0.9–1.6' },
+    squat_to_press: { min: 1.6, max: 2.5, rangeLabel: '1.6–2.5' },
+    deadlift_to_press: { min: 2.0, max: 2.9, rangeLabel: '2.0–2.9' },
+  },
+}
+
+export function getIdealRangeForGoal(
+  ratioId: string,
+  goal: PrimaryGoal
+): { min: number; max: number; rangeLabel: string } | null {
+  return IDEAL_RATIOS_BY_GOAL[goal]?.[ratioId] ?? null
 }
 
 /**
@@ -309,6 +360,250 @@ export function computeConfidence(inputs: {
   if (validLiftCount >= 2 && validLiftCount <= 3) return 'Medium'
   if (validLiftCount === 4 && inputs.bodyweight != null && inputs.experience) return 'High'
   return 'Medium' // 4 lifts but missing bodyweight
+}
+
+/** Explain why confidence is at this level (for tooltip). */
+export function getConfidenceReasons(inputs: {
+  lifts: LiftInput[]
+  bodyweight?: number
+  experience: Experience
+  confidence: ConfidenceLevel
+}): string {
+  const validLifts = inputs.lifts.filter(
+    (l) =>
+      (l.method === 'one_rm' && l.one_rm != null && l.one_rm > 0) ||
+      (l.method === 'weight_reps' &&
+        l.weight != null &&
+        l.weight > 0 &&
+        l.reps != null &&
+        l.reps >= 1 &&
+        l.reps <= 20)
+  )
+  const count = validLifts.length
+  const parts: string[] = []
+
+  if (count < 4) {
+    parts.push(`only ${count} of 4 lifts were entered`)
+  }
+  const withReps = validLifts.filter(
+    (l) => l.method === 'weight_reps' && typeof l.reps === 'number'
+  )
+  const maxReps = withReps.length
+    ? Math.max(...withReps.map((l) => l.reps ?? 0))
+    : 0
+  if (maxReps >= 10) {
+    parts.push(`the rep range used (up to ${maxReps} reps) introduces ~5% estimation variance`)
+  } else if (maxReps >= 5 && maxReps < 10) {
+    parts.push('the rep range used introduces some estimation variance')
+  }
+  if (inputs.bodyweight == null || inputs.bodyweight <= 0) {
+    parts.push('bodyweight was not provided (affects ratio calibration)')
+  }
+  const reason =
+    parts.length > 0
+      ? `Confidence is ${inputs.confidence} because: ${parts.join(', ')}.`
+      : `Confidence is ${inputs.confidence} based on complete inputs.`
+  return reason
+}
+
+/**
+ * Headline diagnosis: one bold sentence at top of report (emotional hook).
+ * Identifies worst imbalance and optional estimated impact.
+ */
+export function getHeadlineDiagnosis(
+  oneRMs: Lift1RM[],
+  flags: RatioFlag[],
+): string {
+  const byLift = get1RMByLift(oneRMs)
+  const flagged = flags.filter((f) => !f.id.startsWith('typical_'))
+
+  if (flagged.length === 0) {
+    return "Great news — your lifts are well-balanced. Here's how to keep building evenly."
+  }
+
+  // Pick the first (prioritised) imbalance for the headline
+  const primary = flagged[0]!
+  void primary.ratio
+
+  // Estimated impact: for bench_lagging_squat / bench_lagging, bringing bench in line with squat
+  let impactKg: number | null = null
+  if (
+    (primary.id === 'bench_lagging' || primary.id === 'bench_lagging_squat' || primary.id === 'bench_lagging_deadlift') &&
+    byLift.squat != null &&
+    byLift.bench != null &&
+    byLift.squat > 0
+  ) {
+    const targetBench = byLift.squat * 0.78 // midpoint of ideal bench:squat
+    if (targetBench > byLift.bench) impactKg = ROUND_1(targetBench - byLift.bench)
+  }
+  if (
+    (primary.id === 'squat_lagging_bench' || primary.id === 'squat_lagging_press') &&
+    byLift.bench != null &&
+    byLift.squat != null &&
+    byLift.bench > 0
+  ) {
+    const targetSquat = byLift.bench / 0.78
+    if (targetSquat > byLift.squat) impactKg = ROUND_1(targetSquat - byLift.squat)
+  }
+
+  const impactPhrase =
+    impactKg != null && impactKg >= 1
+      ? ` Bringing it in line could add an estimated ${impactKg} kg to your total.`
+      : ''
+
+  if (primary.id === 'bench_lagging' || primary.id === 'bench_lagging_squat' || primary.id === 'bench_lagging_deadlift') {
+    return `Your bench press is your limiting lift — horizontal push and triceps work will help.${impactPhrase}`
+  }
+  if (primary.id === 'squat_lagging_bench' || primary.id === 'squat_lagging_press') {
+    return `Your squat is lagging behind your deadlift. Quad and anterior-chain work will unlock your next training block.${impactPhrase}`
+  }
+  if (primary.id === 'deadlift_dominant' || primary.id === 'squat_dominant') {
+    return `Your squat-to-deadlift balance is off. ${primary.id === 'deadlift_dominant' ? 'Posterior-chain accessories will round out your lower body.' : 'Adding deadlift volume will bring your total up.'}`
+  }
+  if (primary.id === 'deadlift_lagging_bench' || primary.id === 'deadlift_lagging_press') {
+    return 'Your deadlift is lagging relative to your upper body. Hinge and hamstring volume for 4–6 weeks will close the gap.'
+  }
+  if (primary.id === 'press_weak' || primary.id === 'press_lagging_squat' || primary.id === 'press_lagging_deadlift') {
+    return 'Your overhead press is the bottleneck. Shoulder stability and pressing volume will pay off across your other lifts.'
+  }
+  if (primary.id === 'press_strong') {
+    return 'Your press is strong relative to bench — consider more horizontal push and triceps work to grow your total.'
+  }
+  return primary.message + (impactPhrase ? impactPhrase : '')
+}
+
+/** Radar chart: normalized (0–100) values per lift for user and goal-ideal profile. */
+export function getRadarChartData(
+  oneRMs: Lift1RM[],
+  goal: PrimaryGoal,
+  bodyweight?: number
+): { subject: string; user: number; ideal: number; oneRM: number }[] {
+  const order: LiftId[] = ['squat', 'bench', 'deadlift', 'press']
+  const idealRatios: Record<LiftId, number> = {
+    Strength: { squat: 1.25, bench: 1.0, deadlift: 1.5, press: 0.6 },
+    Hypertrophy: { squat: 1.2, bench: 1.0, deadlift: 1.45, press: 0.58 },
+    Power: { squat: 1.22, bench: 1.0, deadlift: 1.48, press: 0.58 },
+    Rehab: { squat: 1.2, bench: 1.0, deadlift: 1.4, press: 0.55 },
+  }[goal] ?? { squat: 1.25, bench: 1.0, deadlift: 1.5, press: 0.6 }
+
+  const userByLift: Partial<Record<LiftId, number>> = {}
+  for (const r of oneRMs) {
+    userByLift[r.id] = r.oneRM
+  }
+  const maxUser = Math.max(...order.map((id) => userByLift[id] ?? 0), 1)
+  const maxIdeal = Math.max(...Object.values(idealRatios))
+
+  const out: { subject: string; user: number; ideal: number; oneRM: number }[] = []
+  const LIFT_NAMES: Record<LiftId, string> = {
+    squat: 'Squat',
+    bench: 'Bench Press',
+    deadlift: 'Deadlift',
+    press: 'Overhead Press',
+  }
+  for (const id of order) {
+    const oneRM = userByLift[id] ?? 0
+    out.push({
+      subject: LIFT_NAMES[id],
+      user: ROUND_1((oneRM / maxUser) * 100),
+      ideal: ROUND_1((idealRatios[id]! / maxIdeal) * 100),
+      oneRM,
+    })
+  }
+  if (bodyweight != null && bodyweight > 0) {
+    const ratioBW = ROUND_2((userByLift.bench ?? 0) / bodyweight) // use bench as proxy for "strength relative to BW"
+    const idealBW = idealRatios.bench ?? 1
+    out.push({
+      subject: 'BW ratio',
+      user: ROUND_1(Math.min(100, (ratioBW / (idealBW * 1.2)) * 100)),
+      ideal: 83,
+      oneRM: ratioBW,
+    })
+  }
+  return out
+}
+
+/** Plain-English one-sentence translation for each ratio (max ~18 words). */
+export function getPlainEnglishForRatio(
+  ratioId: string,
+  value: number
+): string {
+  if (ratioId === 'bench_to_squat') {
+    if (value < 0.6) return 'Your bench is behind your squat — common for newer lifters, worth addressing.'
+    if (value > 0.9) return 'Your bench is strong relative to your squat — consider prioritising legs.'
+    return 'Your bench and squat are in a typical balance.'
+  }
+  if (ratioId === 'squat_to_deadlift') {
+    if (value < 0.8) return 'Your deadlift is pulling ahead of your squat — this gap can increase lower-back fatigue over time.'
+    if (value > 1.0) return 'Your squat is ahead of your deadlift — adding deadlift volume will help.'
+    return 'Your squat and deadlift are well matched.'
+  }
+  if (ratioId === 'deadlift_to_bench') {
+    if (value > 1.7) return 'Your deadlift is well ahead of your bench — your upper body push strength is the bottleneck.'
+    if (value < 1.3) return 'Your deadlift is behind your bench — posterior-chain work will help.'
+    return 'Your deadlift and bench are in a good balance.'
+  }
+  if (ratioId === 'press_to_bench') {
+    if (value < 0.35) return 'Your overhead press is lagging — shoulder and pressing volume will help.'
+    if (value > 0.45) return 'Your press is strong relative to bench.'
+    return 'Your press and bench are in a typical range.'
+  }
+  if (ratioId === 'squat_to_bench') {
+    if (value < 1.0) return 'Your squat is behind your bench — lower-body volume will help.'
+    if (value > 1.5) return 'Your bench is behind your squat — horizontal push work is the priority.'
+    return 'Squat and bench are in a good balance.'
+  }
+  if (ratioId === 'squat_to_press') {
+    if (value < 1.8) return 'Your squat is lagging relative to press — lower-body focus will help.'
+    if (value > 2.4) return 'Your press is lagging relative to squat — overhead work is the priority.'
+    return 'Squat and press are in a typical balance.'
+  }
+  if (ratioId === 'deadlift_to_press') {
+    if (value < 2.2) return 'Your deadlift is behind your press — posterior-chain volume will help.'
+    if (value > 2.8) return 'Your press is lagging relative to deadlift.'
+    return 'Deadlift and press are in a good balance.'
+  }
+  return 'Use the ratio to guide your next focus.'
+}
+
+/**
+ * Aggregate "balance score" 0–100 based on how close each ratio is to its ideal
+ * range for the user's goal. 100 = all ratios in range, lower scores = further
+ * from ideal. Heuristic, not a medical or competition-grade metric.
+ */
+export function computeBalanceScore(
+  ratios: { id: string; value: number }[],
+  _flags: RatioFlag[],
+  goal: PrimaryGoal
+): number {
+  const perRatioScores: number[] = []
+
+  for (const r of ratios) {
+    const range = getIdealRangeForGoal(r.id, goal)
+    if (!range) continue
+
+    const { min, max } = range
+    const v = r.value
+
+    let scoreForRatio: number
+    if (v >= min && v <= max) {
+      scoreForRatio = 100
+    } else if (v < min) {
+      const dist = min - v
+      const denom = min || 1
+      scoreForRatio = Math.max(0, 100 - (dist / denom) * 100)
+    } else {
+      const dist = v - max
+      const denom = max || 1
+      scoreForRatio = Math.max(0, 100 - (dist / denom) * 100)
+    }
+
+    perRatioScores.push(Math.max(0, Math.min(100, scoreForRatio)))
+  }
+
+  if (perRatioScores.length === 0) return 50
+
+  const avg = perRatioScores.reduce((sum, s) => sum + s, 0) / perRatioScores.length
+  return Math.round(avg)
 }
 
 // Short callout for each imbalance so users don't have to interpret ratios
@@ -524,23 +819,32 @@ function getAccessories(
     return mapping.priorities
   }
 
-  // Collect accessories from prioritised flags, ensuring lower-body imbalances get remediated
+  // Collect accessories from prioritised flags, aiming to cover distinct imbalances first
   const seen = new Set<string>()
   const result: AccessoryExercise[] = []
   const targetCount = 3
+  const perFlagExercises: { flag: RatioFlag; exercises: string[] }[] = prioritised.map((flag) => ({
+    flag,
+    exercises: getExercisesForFlag(flag),
+  }))
 
-  for (const flag of prioritised) {
-    const exercises = getExercisesForFlag(flag)
-    const forImbalance = FLAG_IMBALANCE_CALLOUT[flag.id]
-    for (const ex of exercises) {
+  // First pass: 1 exercise per imbalance (flag) to diversify recommendations
+  let exerciseIndex = 0
+  while (result.length < targetCount && exerciseIndex < 3) {
+    let addedInThisRound = false
+    for (const { flag, exercises } of perFlagExercises) {
+      const ex = exercises[exerciseIndex]
+      if (!ex) continue
       const name = ex.replace(/\s+\d+x\d+$/, '').trim()
-      if (!seen.has(name) && result.length < targetCount) {
-        seen.add(name)
-        result.push({ ...toAcc(ex), forImbalance })
-      }
+      if (seen.has(name)) continue
+      const forImbalance = FLAG_IMBALANCE_CALLOUT[flag.id]
+      seen.add(name)
+      result.push({ ...toAcc(ex), forImbalance })
+      addedInThisRound = true
       if (result.length >= targetCount) break
     }
-    if (result.length >= targetCount) break
+    if (!addedInThisRound) break
+    exerciseIndex += 1
   }
 
   if (result.length < targetCount) {

@@ -33,6 +33,10 @@ export interface FormState {
   injury: boolean
   injury_notes?: string
   equipment: string[]
+  /** Coach workflow toggles/features (local only). */
+  coach_mode?: boolean
+  athlete_name?: string
+  coach_name?: string
 }
 
 export type OneRMMethod = 'epley' | 'user_provided'
@@ -103,6 +107,16 @@ export interface DiagnosticResult {
   confidence: ConfidenceLevel
   /** Lift percentiles (ratio × bodyweight vs population). Requires bodyweight. */
   liftPercentiles?: LiftPercentile[]
+}
+
+/** Coach mode: saved athlete scenario (localStorage). */
+export interface SavedAthleteScenario {
+  id: string
+  athleteName: string
+  savedAt: string // ISO date
+  primaryImbalance: string | null // first non-typical flag label or null
+  form: FormState
+  result: DiagnosticResult
 }
 
 export interface DiagnosticInputs {

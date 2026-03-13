@@ -3,7 +3,12 @@
  * Wire to PostHog, GA4, or other provider via environment.
  */
 
-type EventName = 'form_start' | 'form_complete' | 'pdf_export'
+type EventName =
+  | 'form_start'
+  | 'form_complete'
+  | 'pdf_export'
+  | 'coach_load_athlete'
+  | 'coach_save_athlete'
 
 export function trackEvent(event: EventName, properties?: Record<string, unknown>) {
   if (typeof window === 'undefined') return
