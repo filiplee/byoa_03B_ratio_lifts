@@ -74,7 +74,7 @@ export function LiftCard({ lift, units, bodyweight, onChange, hint }: LiftCardPr
               inputMode="decimal"
               min={0}
               step={0.5}
-              placeholder="e.g. 100"
+              placeholder="0"
               value={lift.weight ?? ''}
               onChange={(e) => setWeight(e.target.value === '' ? undefined : Number(e.target.value))}
               className="w-full rounded-lg border border-slate-500/50 bg-slate-700/50 px-4 py-3 font-light text-white placeholder:text-slate-400 focus:border-teal-500/50 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
@@ -90,7 +90,7 @@ export function LiftCard({ lift, units, bodyweight, onChange, hint }: LiftCardPr
               inputMode="numeric"
               min={1}
               max={20}
-              placeholder="e.g. 5"
+              placeholder="0"
               value={lift.reps ?? ''}
               onChange={(e) => setReps(e.target.value === '' ? undefined : Number(e.target.value))}
               className="w-full rounded-lg border border-slate-500/50 bg-slate-700/50 px-4 py-3 font-light text-white placeholder:text-slate-400 focus:border-teal-500/50 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
@@ -108,7 +108,7 @@ export function LiftCard({ lift, units, bodyweight, onChange, hint }: LiftCardPr
             inputMode="decimal"
             min={0}
             step={0.5}
-            placeholder="e.g. 140"
+            placeholder="0"
             value={lift.one_rm ?? ''}
             onChange={(e) => setOneRM(e.target.value === '' ? undefined : Number(e.target.value))}
             className="w-full rounded-lg border border-slate-500/50 bg-slate-700/50 px-4 py-3 font-light text-white placeholder:text-slate-400 focus:border-teal-500/50 focus:outline-none focus:ring-2 focus:ring-teal-500/30"

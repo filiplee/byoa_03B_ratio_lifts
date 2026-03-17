@@ -630,7 +630,7 @@ const ACCESSORY_MAP: Record<
   { priorities: string[]; fallback_if_knee_injury?: string[]; fallback_if_lower_back_pain?: string[] }
 > = {
   bench_dominant: {
-    priorities: ['Squat strength 3x5', 'Lower-body volume 3x8', 'Hip drive work 3x10'],
+    priorities: ['Pause Squat 3x5', 'Bulgarian Split Squat 3x8', 'Box Squat 3x10'],
     fallback_if_knee_injury: ['Romanian deadlift 3x6', 'Glute bridge 3x8'],
   },
   deadlift_dominant: {
@@ -638,34 +638,34 @@ const ACCESSORY_MAP: Record<
     fallback_if_lower_back_pain: ['Hip thrust 3x6', 'Single-leg RDL light'],
   },
   bench_lagging: {
-    priorities: ['Horizontal push volume 3x8', 'Close-grip bench 3x6', 'Triceps work 3x10'],
+    priorities: ['Incline Dumbbell Press 3x8', 'Close-grip bench 3x6', 'Cable Triceps Pushdown 3x10'],
   },
   press_weak: {
     priorities: ['Seated DB press 3x6', 'Face pulls 3x12', 'Lateral raises 3x10'],
   },
   squat_dominant: {
-    priorities: ['Deadlift volume 3x5', 'RDL 3x6', 'Block pulls 3x5'],
+    priorities: ['Deadlift Volume Sets 3x5', 'RDL 3x6', 'Block pulls 3x5'],
   },
   press_strong: {
-    priorities: ['Bench volume 3x6', 'Incline bench 3x8', 'Triceps work 3x10'],
+    priorities: ['Bench Press Volume Sets 3x6', 'Incline bench 3x8', 'Cable Triceps Pushdown 3x10'],
   },
   // Lower-to-upper cross-body flags
   squat_lagging_bench: {
-    priorities: ['Squat strength 3x5', 'Lower-body volume 3x8', 'Hip drive work 3x10'],
+    priorities: ['Pause Squat 3x5', 'Bulgarian Split Squat 3x8', 'Box Squat 3x10'],
     fallback_if_knee_injury: ['Romanian deadlift 3x6', 'Glute bridge 3x8'],
   },
   bench_lagging_squat: {
-    priorities: ['Horizontal push volume 3x8', 'Close-grip bench 3x6', 'Triceps work 3x10'],
+    priorities: ['Incline Dumbbell Press 3x8', 'Close-grip bench 3x6', 'Cable Triceps Pushdown 3x10'],
   },
   deadlift_lagging_bench: {
     priorities: ['RDL 3x6', 'Glute bridge 3x8', 'Hamstring curl 3x10'],
     fallback_if_lower_back_pain: ['Hip thrust 3x6', 'Single-leg RDL light'],
   },
   bench_lagging_deadlift: {
-    priorities: ['Horizontal push volume 3x8', 'Close-grip bench 3x6', 'Triceps work 3x10'],
+    priorities: ['Incline Dumbbell Press 3x8', 'Close-grip bench 3x6', 'Cable Triceps Pushdown 3x10'],
   },
   squat_lagging_press: {
-    priorities: ['Squat strength 3x5', 'Lower-body volume 3x8', 'Hip drive work 3x10'],
+    priorities: ['Pause Squat 3x5', 'Bulgarian Split Squat 3x8', 'Box Squat 3x10'],
     fallback_if_knee_injury: ['Romanian deadlift 3x6', 'Glute bridge 3x8'],
   },
   press_lagging_squat: {
@@ -727,19 +727,19 @@ const ACCESSORY_TO_LIFT: Record<string, { lift: LiftId; pct: number }> = {
   'Glute bridge': { lift: 'deadlift', pct: 0.5 },
   'Hip thrust': { lift: 'deadlift', pct: 0.6 },
   'Hamstring curl': { lift: 'deadlift', pct: 0.25 },
-  'Squat strength': { lift: 'squat', pct: 0.8 },
-  'Lower-body volume': { lift: 'squat', pct: 0.7 },
-  'Hip drive work': { lift: 'squat', pct: 0.5 },
-  'Horizontal push volume': { lift: 'bench', pct: 0.7 },
+  'Pause Squat': { lift: 'squat', pct: 0.8 },
+  'Bulgarian Split Squat': { lift: 'squat', pct: 0.7 },
+  'Box Squat': { lift: 'squat', pct: 0.5 },
+  'Incline Dumbbell Press': { lift: 'bench', pct: 0.7 },
   'Close-grip bench': { lift: 'bench', pct: 0.75 },
-  'Triceps work': { lift: 'bench', pct: 0.4 },
+  'Cable Triceps Pushdown': { lift: 'bench', pct: 0.4 },
   'Seated DB press': { lift: 'press', pct: 0.6 },
   'Face pulls': { lift: 'press', pct: 0.15 },
   'Lateral raises': { lift: 'press', pct: 0.2 },
-  'Deadlift volume': { lift: 'deadlift', pct: 0.85 },
+  'Deadlift Volume Sets': { lift: 'deadlift', pct: 0.85 },
   'Block pulls': { lift: 'deadlift', pct: 0.8 },
   'Deficit deadlift': { lift: 'deadlift', pct: 0.75 },
-  'Bench volume': { lift: 'bench', pct: 0.75 },
+  'Bench Press Volume Sets': { lift: 'bench', pct: 0.75 },
   'Incline bench': { lift: 'bench', pct: 0.65 },
   'Landmine press': { lift: 'press', pct: 0.5 },
   'Push-ups': { lift: 'bench', pct: 0.5 },
@@ -753,7 +753,12 @@ const ACCESSORY_CUES: Record<string, string> = {
   'Romanian deadlift': 'Hinge at hips, slight knee bend.',
   'Glute bridge': 'Squeeze glutes at top.',
   'Hamstring curl': 'Control the eccentric.',
+  'Pause Squat': 'Pause 1–2s in the hole, stay tight.',
+  'Bulgarian Split Squat': 'Long stride, keep front knee tracking over toes.',
+  'Box Squat': 'Sit back to box under control, drive up explosively.',
+  'Incline Dumbbell Press': 'Control the descent, press up and slightly in.',
   'Close-grip bench': 'Elbows tucked, triceps focus.',
+  'Cable Triceps Pushdown': 'Keep elbows pinned, extend fully without swinging.',
   'Seated DB press': 'Press up, don\'t sway.',
   'Face pulls': 'External rotation at end.',
   'Lateral raises': 'Lead with elbows.',

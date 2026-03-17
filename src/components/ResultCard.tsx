@@ -58,29 +58,33 @@ const ACCESSORY_PATTERN_MAP: Record<
   string,
   { exercise: string; pattern: string }
 > = {
-  'Squat strength': {
-    exercise: 'Back Squat',
+  'Pause Squat': {
+    exercise: 'Pause Back Squat',
     pattern: 'Squat strength focus',
   },
-  'Lower-body volume': {
+  'Bulgarian Split Squat': {
     exercise: 'Bulgarian Split Squat',
     pattern: 'Lower-body volume focus',
   },
-  'Hip drive work': {
-    exercise: 'Romanian Deadlift',
+  'Box Squat': {
+    exercise: 'Box Squat',
     pattern: 'Hip drive / posterior-chain focus',
   },
-  'Horizontal push volume': {
-    exercise: 'Dumbbell Bench Press',
+  'Incline Dumbbell Press': {
+    exercise: 'Incline Dumbbell Press',
     pattern: 'Horizontal push volume',
   },
-  'Triceps work': {
+  'Cable Triceps Pushdown': {
     exercise: 'Cable Triceps Pushdown',
     pattern: 'Triceps / lockout focus',
   },
-  'Deadlift volume': {
-    exercise: 'Conventional Deadlift',
+  'Deadlift Volume Sets': {
+    exercise: 'Conventional Deadlift (volume sets)',
     pattern: 'Deadlift volume focus',
+  },
+  'Bench Press Volume Sets': {
+    exercise: 'Bench Press (volume sets)',
+    pattern: 'Horizontal push volume',
   },
 }
 
@@ -159,15 +163,21 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
 
   return (
     <div className="rounded-xl border border-slate-500/50 bg-slate-600/50 p-6">
-      <h2 className="mb-5 text-lg font-medium text-white">Your report</h2>
+      <h2 className="mb-4 text-lg font-medium text-white">Your report</h2>
 
-      {/* Headline diagnosis (emotional hook) */}
-      <div className="mb-6 rounded-lg border-l-4 border-teal-400/70 bg-slate-700/30 p-4">
-        <p className="text-base font-semibold text-slate-100 sm:text-lg">
+      {/* Primary diagnosis / main finding (hero card) */}
+      <div className="mb-6 rounded-xl border border-teal-400/80 bg-gradient-to-r from-teal-500/20 via-slate-800/70 to-teal-500/10 p-4 shadow-lg">
+        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-teal-200/90">
+          Main finding
+        </p>
+        <p className="text-lg font-semibold text-slate-50 sm:text-2xl">
+          {result.oneLineDiagnosis}
+        </p>
+        <p className="mt-2 text-sm text-slate-100/90 sm:text-base">
           {headline}
         </p>
         {form.primary_goal === 'Rehab' && (
-          <p className="mt-2 text-xs text-slate-300">
+          <p className="mt-3 text-xs text-slate-200/90">
             Rehab mode uses wider ranges — any flags are gentle cautions, not red alarms.
           </p>
         )}
@@ -355,6 +365,13 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
                     <p className="mt-1 text-xs font-light text-slate-200">
                       {ratioSentence}
                     </p>
+                    {category !== 'balanced' && (
+                      <p className="mt-0.5 text-[11px] text-slate-300">
+                        {category === 'lagging'
+                          ? 'A lagging ratio like this can hide weak links that cap your overall strength and push extra stress into nearby joints.'
+                          : 'A dominant ratio like this often reflects technique gaps or muscle imbalances that can increase injury risk over time.'}
+                      </p>
+                    )}
                   </div>
                 )
               })}
@@ -390,11 +407,6 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
         {showConfidenceWhy && (
           <p className="text-xs font-light text-slate-300">{confidenceWhy}</p>
         )}
-      </div>
-
-      {/* Supporting diagnosis callout */}
-      <div className="mb-6 rounded-lg border border-slate-500/50 bg-slate-700/30 p-4">
-        <p className="text-sm font-medium text-slate-100">{result.oneLineDiagnosis}</p>
       </div>
 
       {/* Bottom: Top 3 recommendations with sets, reps, weights */}
@@ -485,14 +497,6 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
           >
             Set a reminder (4 weeks)
           </button>
-          <button
-            type="button"
-            onClick={onSaveScenario}
-            className="flex-1 rounded-lg border border-slate-500/50 bg-slate-600/30 px-4 py-2.5 text-sm font-medium text-slate-100 hover:bg-slate-600/40 disabled:opacity-50"
-            disabled={!onSaveScenario}
-          >
-            Save this report to compare later
-          </button>
         </div>
         <p className="mt-2 text-xs text-slate-400">Reminder date: {reminderISO} (copied/shared when tapped).</p>
       </div>
@@ -551,6 +555,15 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
       >
         Export PDF
       </button>
+      {onSaveScenario && (
+        <button
+          type="button"
+          onClick={onSaveScenario}
+          className="mt-3 w-full rounded-lg border border-slate-500/60 bg-slate-700/60 px-4 py-2.5 text-sm font-medium text-slate-100 hover:bg-slate-600/60"
+        >
+          Save this report
+        </button>
+      )}
     </div>
   )
 }

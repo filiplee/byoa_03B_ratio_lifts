@@ -10,7 +10,7 @@ interface SecondarySectionProps {
 }
 
 export function SecondarySection({ form, onChange }: SecondarySectionProps) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
 
   const toggleEquipment = (item: string) => {
     const next = form.equipment.includes(item)
@@ -31,6 +31,9 @@ export function SecondarySection({ form, onChange }: SecondarySectionProps) {
       </button>
       {open && (
         <div className="border-t border-slate-500/50 px-5 pb-5 pt-3">
+          <p className="mb-3 text-xs text-slate-300">
+            Your goal affects the ideal ratios and accessory recommendations.
+          </p>
           <div className="mb-5">
             <label className="mb-2 block text-xs font-medium text-slate-300">Primary goal</label>
             <div className="flex flex-wrap gap-2">
