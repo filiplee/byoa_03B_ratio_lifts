@@ -96,7 +96,6 @@ export default function FormApp() {
     coach_name: loadCoachName(),
   }))
   const [result, setResult] = useState<DiagnosticResult | null>(null)
-  const [showDisclaimer, setShowDisclaimer] = useState(false)
   const [savedAthletes, setSavedAthletes] = useState<SavedAthleteScenario[]>(() => loadSavedAthletes())
 
   const updateForm = useCallback((patch: Partial<FormState>) => {
@@ -156,10 +155,6 @@ export default function FormApp() {
   }, [form, result, savedAthletes])
 
   const handleGenerate = () => {
-    if (!showDisclaimer) {
-      setShowDisclaimer(true)
-      return
-    }
     trackEvent('form_complete')
     const diagnostic = runDiagnostic(form.lifts, {
       bodyweight: form.bodyweight,
@@ -168,7 +163,6 @@ export default function FormApp() {
       injury_notes: form.injury_notes,
     })
     setResult(diagnostic)
-    setShowDisclaimer(false)
   }
 
   useEffect(() => {
@@ -187,7 +181,7 @@ export default function FormApp() {
   )
 
   return (
-    <div className="min-h-screen bg-slate-700">
+    <div className="min-h-screen bg-[#0a0a0a]">
       <Header
         units={form.units}
         onUnitsChange={setUnits}
@@ -202,114 +196,20 @@ export default function FormApp() {
         onSelectAthlete={handleSelectAthlete}
       />
 
-      <main className={`mx-auto px-6 pb-28 pt-8 ${result ? 'max-w-4xl' : 'max-w-lg'}`}>
-        <div className="mb-8 text-center">
-          <p className="text-xl font-semibold text-white">
-            Find out exactly what&apos;s holding your lifts back.
+      <main className={`mx-auto px-6 pb-28 pt-6 ${result ? 'max-w-4xl' : 'max-w-lg'}`}>
+        {/* Hero: tight, one screen max */}
+        <header className="mb-8 text-center">
+          <h1 className="font-display text-[clamp(2.5rem,6vw,4rem)] leading-[0.95] tracking-[0.02em] text-[#f5f2ec]">
+            FIND YOUR
+            <br />
+            <span className="text-[#e8c547]">WEAK LINK</span>
+          </h1>
+          <p className="mt-3 text-[#a8a8a8] text-base sm:text-lg">
+            Enter your lifts. Get your diagnosis. Know exactly what to fix.
           </p>
-          <p className="mt-2 font-light text-slate-200">
-            Enter your numbers. Get a personalised strength diagnosis and accessory prescription in under 60 seconds.
-          </p>
-        </div>
+        </header>
 
-        {form.coach_mode && (
-          <div className="mb-8 rounded-xl border border-slate-500/50 bg-slate-600/50 p-5">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="coachName" className="mb-1 block text-xs font-medium text-slate-300">
-                  Coach name
-                </label>
-                <input
-                  id="coachName"
-                  type="text"
-                  placeholder="e.g. Coach Lee"
-                  value={form.coach_name ?? ''}
-                  onChange={(e) => {
-                    const next = e.target.value || undefined
-                    updateForm({ coach_name: next })
-                    persistCoachName(next)
-                  }}
-                  className="w-full rounded-lg border border-slate-500/50 bg-slate-700/50 px-4 py-3 font-light text-white placeholder:text-slate-400 focus:border-teal-500/50 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-                />
-              </div>
-              <div>
-                <label htmlFor="athleteName" className="mb-1 block text-xs font-medium text-slate-300">
-                  Athlete name
-                </label>
-                <input
-                  id="athleteName"
-                  type="text"
-                  placeholder="e.g. Alex P."
-                  value={form.athlete_name ?? ''}
-                  onChange={(e) => updateForm({ athlete_name: e.target.value || undefined })}
-                  className="w-full rounded-lg border border-slate-500/50 bg-slate-700/50 px-4 py-3 font-light text-white placeholder:text-slate-400 focus:border-teal-500/50 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-                />
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-slate-400">Included in PDF export.</p>
-          </div>
-        )}
-
-        <div className="mb-8 grid grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="bodyweight" className="mb-1 block text-xs font-medium text-slate-300">
-              Bodyweight (optional)
-            </label>
-            <p className="mb-2 text-[11px] text-slate-400">
-              Enter this to unlock percentile rankings in your report.
-            </p>
-            <input
-              id="bodyweight"
-              type="number"
-              inputMode="decimal"
-              min={0}
-              step={0.5}
-              placeholder="—"
-              value={form.bodyweight ?? ''}
-              onChange={(e) =>
-                updateForm({ bodyweight: e.target.value === '' ? undefined : Number(e.target.value) })
-              }
-              className="w-full rounded-lg border border-slate-500/50 bg-slate-600/50 px-4 py-3 font-light text-white placeholder:text-slate-400 focus:border-teal-500/50 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-300">Experience</label>
-            <select
-              value={form.experience}
-              onChange={(e) => updateForm({ experience: e.target.value as FormState['experience'] })}
-              className="w-full rounded-lg border border-slate-500/50 bg-slate-600/50 px-4 py-3 font-light text-white focus:border-teal-500/50 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-            >
-              {EXPERIENCE_OPTIONS.map((e) => (
-                <option key={e} value={e}>
-                  {e}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="mb-8">
-          <label className="mb-2 block text-xs font-medium text-slate-300">
-            Training frequency (per week)
-          </label>
-          <div className="flex gap-2">
-            {FREQUENCY_OPTIONS.map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => updateForm({ training_frequency: f })}
-                className={`flex-1 rounded-lg py-3 text-sm font-medium ${
-                  form.training_frequency === f
-                    ? 'bg-teal-600/80 text-white'
-                    : 'bg-slate-600/50 text-slate-200 ring-1 ring-slate-500/50 hover:bg-slate-600'
-                }`}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-        </div>
-
+        {/* Lifts first */}
         <div className="mb-8 grid grid-cols-1 gap-5 lg:grid-cols-2">
           {form.lifts.slice(0, 4).map((lift, i) => (
             <LiftCard
@@ -323,35 +223,123 @@ export default function FormApp() {
           ))}
         </div>
 
+        {/* Profile: bodyweight, experience, frequency */}
+        <div className="mb-8 grid grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="bodyweight" className="mb-1 block text-xs font-medium text-[#a8a8a8]">
+              Bodyweight (optional)
+            </label>
+            <input
+              id="bodyweight"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step={0.5}
+              placeholder="—"
+              value={form.bodyweight ?? ''}
+              onChange={(e) =>
+                updateForm({ bodyweight: e.target.value === '' ? undefined : Number(e.target.value) })
+              }
+              className="w-full rounded-none border border-[#2a2a2a] bg-[#1c1c1c] px-4 py-3 font-light text-[#f5f2ec] placeholder:text-[#555] focus:border-[#e8c547] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/30"
+            />
+            <p className="mt-1.5 text-[11px] text-[#555]">
+              Unlocks your strength percentiles and full radar breakdown.
+            </p>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[#a8a8a8]">Experience</label>
+            <select
+              value={form.experience}
+              onChange={(e) => updateForm({ experience: e.target.value as FormState['experience'] })}
+              className="w-full rounded-none border border-[#2a2a2a] bg-[#1c1c1c] px-4 py-3 font-light text-[#f5f2ec] focus:border-[#e8c547] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/30"
+            >
+              {EXPERIENCE_OPTIONS.map((e) => (
+                <option key={e} value={e}>
+                  {e}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="mb-8">
+          <label className="mb-2 block text-xs font-medium text-[#a8a8a8]">
+            Training frequency (per week)
+          </label>
+          <div className="flex gap-2">
+            {FREQUENCY_OPTIONS.map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => updateForm({ training_frequency: f })}
+                className={`flex-1 rounded-none py-3 text-sm font-medium ${
+                  form.training_frequency === f
+                    ? 'bg-[#e8c547] text-[#0a0a0a]'
+                    : 'bg-[#1c1c1c] text-[#a8a8a8] border border-[#2a2a2a] hover:bg-[#2e2e2e]'
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {form.coach_mode && (
+          <div className="mb-8 rounded-none border border-[#2a2a2a] bg-[#1c1c1c] p-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="coachName" className="mb-1 block text-xs font-medium text-[#a8a8a8]">
+                  Coach name
+                </label>
+                <input
+                  id="coachName"
+                  type="text"
+                  placeholder="e.g. Coach Lee"
+                  value={form.coach_name ?? ''}
+                  onChange={(e) => {
+                    const next = e.target.value || undefined
+                    updateForm({ coach_name: next })
+                    persistCoachName(next)
+                  }}
+                  className="w-full rounded-none border border-[#2a2a2a] bg-[#111111] px-4 py-3 font-light text-[#f5f2ec] placeholder:text-[#555] focus:border-[#e8c547] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/30"
+                />
+              </div>
+              <div>
+                <label htmlFor="athleteName" className="mb-1 block text-xs font-medium text-[#a8a8a8]">
+                  Athlete name
+                </label>
+                <input
+                  id="athleteName"
+                  type="text"
+                  placeholder="e.g. Alex P."
+                  value={form.athlete_name ?? ''}
+                  onChange={(e) => updateForm({ athlete_name: e.target.value || undefined })}
+                  className="w-full rounded-none border border-[#2a2a2a] bg-[#111111] px-4 py-3 font-light text-[#f5f2ec] placeholder:text-[#555] focus:border-[#e8c547] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/30"
+                />
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-[#555]">Included in PDF export.</p>
+          </div>
+        )}
+
         <div className="mb-8">
           <SecondarySection form={form} onChange={updateForm} />
         </div>
 
-        {showDisclaimer && (
-          <div className="mb-8 rounded-lg border border-slate-500/50 bg-slate-600/50 p-5 text-sm">
-            <p className="font-medium text-white">Before we generate your report</p>
-            <p className="mt-2 font-light text-slate-200">
-              This report is for informational use only and is not medical advice. If you have injuries or health
-              concerns, consult a professional.
-            </p>
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={handleGenerate}
-                className="rounded-lg bg-teal-600/80 px-4 py-2 text-sm font-medium text-white hover:bg-teal-600"
-              >
-                Generate report
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowDisclaimer(false)}
-                className="rounded-lg border border-slate-500/50 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-600/50"
-              >
-                Back
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Generate: one click, no gate */}
+        <div className="mb-8">
+          <button
+            type="button"
+            onClick={result ? () => setResult(null) : handleGenerate}
+            disabled={!hasEnoughLifts && !result}
+            className="w-full rounded-none bg-[#e8c547] px-4 py-3 font-medium text-[#0a0a0a] hover:bg-[#f5d76a] disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#e8c547]/50 focus:ring-offset-2 focus:ring-offset-[#0a0a0a]"
+          >
+            {result ? 'Start over' : 'Find my weak link'}
+          </button>
+          <p className="mt-2 text-center text-xs text-[#555]">
+            For information only — not medical advice. Use your head.
+          </p>
+        </div>
 
         {result && (
           <div className="mb-8">
@@ -362,25 +350,25 @@ export default function FormApp() {
               onSaveScenario={handleSaveScenario}
             />
             {result.oneRMs.length < 2 && (
-              <p className="mt-4 text-sm text-slate-300">Add another lift to get ratio diagnostics.</p>
+              <p className="mt-4 text-sm text-[#a8a8a8]">Add another lift to get ratio diagnostics.</p>
             )}
           </div>
         )}
       </main>
 
-      <footer className="fixed bottom-0 left-0 right-0 z-10 border-t border-slate-600 bg-slate-700/95 px-6 py-4 backdrop-blur">
+      <footer className="fixed bottom-0 left-0 right-0 z-10 border-t border-[#2a2a2a] bg-[rgba(10,10,10,0.9)] px-6 py-4 backdrop-blur">
         <div className="mx-auto flex max-w-lg flex-col gap-3">
-          {!showDisclaimer && hasEnoughLifts && (
+          {hasEnoughLifts && (
             <button
               type="button"
-              onClick={() => (hasEnoughLifts ? setShowDisclaimer(true) : null)}
-              className="w-full rounded-lg bg-teal-600/80 px-4 py-3 font-medium text-white hover:bg-teal-600 disabled:opacity-50 disabled:hover:bg-teal-600/80 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:ring-offset-2 focus:ring-offset-slate-700"
+              onClick={result ? () => setResult(null) : handleGenerate}
+              className="w-full rounded-none bg-[#e8c547] px-4 py-3 font-medium text-[#0a0a0a] hover:bg-[#f5d76a] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/50 focus:ring-offset-2 focus:ring-offset-[#0a0a0a]"
             >
-              {result ? 'Start over' : 'Generate report'}
+              {result ? 'Start over' : 'Find my weak link'}
             </button>
           )}
           {!hasEnoughLifts && (
-            <p className="text-center text-xs text-slate-400">
+            <p className="text-center text-xs text-[#555]">
               Fill in at least one lift above to generate your report.
             </p>
           )}

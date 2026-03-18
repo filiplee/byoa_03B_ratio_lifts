@@ -161,31 +161,77 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
     }
   }
 
-  return (
-    <div className="rounded-xl border border-slate-500/50 bg-slate-600/50 p-6">
-      <h2 className="mb-4 text-lg font-medium text-white">Your report</h2>
+  const primaryFlag = result.flags.find((f) => !f.id.startsWith('typical_'))
+  const weakLinkLabel = primaryFlag?.label ?? result.oneRMs[0]?.name ?? 'Your profile'
 
-      {/* Primary diagnosis / main finding (hero card) */}
-      <div className="mb-6 rounded-xl border border-teal-400/80 bg-gradient-to-r from-teal-500/20 via-slate-800/70 to-teal-500/10 p-4 shadow-lg">
-        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-teal-200/90">
-          Main finding
+  return (
+    <div className="rounded-none border border-[#2a2a2a] bg-[#1c1c1c] p-6">
+      {/* Hero result: verdict first, impossible to miss */}
+      <section className="mb-8 border-b border-[#2a2a2a] pb-8">
+        <p className="font-display text-[clamp(1.75rem,4vw,2.5rem)] leading-[0.95] tracking-[0.02em] text-[#f5f2ec]">
+          YOUR WEAK LINK
         </p>
-        <p className="text-lg font-semibold text-slate-50 sm:text-2xl">
+        <p className="mt-2 font-display text-[clamp(1.5rem,3vw,2rem)] tracking-[0.02em] text-[#e8c547]">
+          {weakLinkLabel}
+        </p>
+        <p className="mt-3 text-lg font-medium text-[#e8e5df] sm:text-xl">
           {result.oneLineDiagnosis}
         </p>
-        <p className="mt-2 text-sm text-slate-100/90 sm:text-base">
+        <p className="mt-2 text-[#a8a8a8] text-base">
           {headline}
         </p>
         {form.primary_goal === 'Rehab' && (
-          <p className="mt-3 text-xs text-slate-200/90">
+          <p className="mt-3 text-sm text-[#a8a8a8]">
             Rehab mode uses wider ranges — any flags are gentle cautions, not red alarms.
+          </p>
+        )}
+      </section>
+
+      {/* Email capture: directly below hero for maximum conversion */}
+      <div className="mb-8 rounded-none border border-[#2a2a2a] bg-[#111111] p-4">
+        {!emailSubmitted ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!email.trim()) return
+              console.log('Retest reminder email:', email.trim())
+              setEmailSubmitted(true)
+            }}
+            className="space-y-3"
+          >
+            <p className="text-sm font-medium text-[#f5f2ec]">
+              Want a reminder to retest in 8 weeks and track your progress?
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full rounded-none border border-[#2a2a2a] bg-[#1c1c1c] px-3 py-2.5 text-sm text-[#f5f2ec] placeholder:text-[#555] focus:border-[#e8c547] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/30"
+                required
+              />
+              <button
+                type="submit"
+                className="shrink-0 rounded-none border-none bg-[#e8c547] px-4 py-2.5 text-sm font-medium text-[#0a0a0a] hover:bg-[#f5d76a] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/50"
+              >
+                Get reminder
+              </button>
+            </div>
+            <p className="text-[11px] text-[#555]">
+              We’ll only use this to send a one-time reminder to re-test your ratios.
+            </p>
+          </form>
+        ) : (
+          <p className="text-sm font-medium text-[#e8c547]">
+            Got it — we&apos;ll remind you to retest in about 8 weeks.
           </p>
         )}
       </div>
 
-      {/* Strength profile radar chart */}
+      {/* Radar chart: second thing after hero */}
       {result.oneRMs.length > 0 && (
-        <div className="mb-6">
+        <div className="mb-8">
           <StrengthRadarChart
             oneRMs={result.oneRMs}
             goal={form.primary_goal}
@@ -195,9 +241,8 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
         </div>
       )}
 
-      {/* Main content: Graphs first (horizontal), then 1RM, then ratios (horizontal) */}
+      {/* Main content: Graphs, 1RM, ratios */}
       <div className="mb-6 space-y-6">
-        {/* 1. Graphs horizontal first — wider grid so charts don't overlap */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 min-w-0">
           {liftPercentiles.length > 0 ? (
             liftPercentiles.map((lp) => (
@@ -211,27 +256,26 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
               </div>
             ))
           ) : (
-            <div className="col-span-2 sm:col-span-4 rounded-lg border border-dashed border-slate-500/50 bg-slate-700/30 p-4 text-center">
-              <p className="text-sm text-slate-400">
+            <div className="col-span-2 sm:col-span-4 rounded-none border border-dashed border-[#2a2a2a] bg-[#111111] p-4 text-center">
+              <p className="text-sm text-[#555]">
                 Add bodyweight to see distribution curves
               </p>
             </div>
           )}
         </div>
 
-        {/* 2. 1RM estimates */}
         <div>
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-300">
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-[#a8a8a8]">
             Calculated 1RM
           </h3>
-          <div className="overflow-hidden rounded-lg border border-slate-500/50">
+          <div className="overflow-hidden rounded-none border border-[#2a2a2a]">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-500/50 bg-slate-700/50">
-                  <th className="px-4 py-2.5 text-left font-medium text-slate-200">
+                <tr className="border-b border-[#2a2a2a] bg-[#111111]">
+                  <th className="px-4 py-2.5 text-left font-medium text-[#a8a8a8]">
                     Lift
                   </th>
-                  <th className="px-4 py-2.5 text-right font-medium text-slate-200">
+                  <th className="px-4 py-2.5 text-right font-medium text-[#a8a8a8]">
                     1RM ({form.units})
                   </th>
                 </tr>
@@ -240,13 +284,13 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
                 {result.oneRMs.map((r) => (
                   <tr
                     key={r.id}
-                    className="border-b border-slate-500/30 last:border-b-0"
+                    className="border-b border-[#2a2a2a] last:border-b-0"
                   >
-                    <td className="px-4 py-2 font-light text-slate-200">{r.name}</td>
-                    <td className="px-4 py-2 text-right font-medium text-white">
+                    <td className="px-4 py-2 font-light text-[#e8e5df]">{r.name}</td>
+                    <td className="px-4 py-2 text-right font-medium text-[#f5f2ec]">
                       {r.oneRM}
                       {r.method === 'user_provided' && (
-                        <span className="ml-1 text-xs text-slate-400">
+                        <span className="ml-1 text-xs text-[#555]">
                           (provided)
                         </span>
                       )}
@@ -257,34 +301,33 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
             </table>
           </div>
           {!hasUserProvided && (
-            <p className="mt-2 text-xs text-slate-400">
+            <p className="mt-2 text-xs text-[#555]">
               Estimated via Epley formula: 1RM = weight × (1 + reps/30)
             </p>
           )}
         </div>
 
-        {/* 3. Ratios horizontal (cards side by side) */}
         {result.ratios.length > 0 && (
           <div>
             <div className="mb-3 flex items-end justify-between gap-2">
               <div>
-                <h3 className="text-xs font-medium uppercase tracking-wide text-slate-300">
+                <h3 className="text-xs font-medium uppercase tracking-wide text-[#a8a8a8]">
                   Balance Score
                 </h3>
-                <p className="mt-0.5 text-[11px] text-slate-400">
+                <p className="mt-0.5 text-[11px] text-[#555]">
                   0–100 summary of how closely your key ratios sit inside their ideal ranges.
                 </p>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-semibold text-teal-300">
+                <div className="font-display text-2xl text-[#e8c547]">
                   {balanceScore}
                 </div>
-                <div className="text-xs font-medium text-slate-300">
+                <div className="text-xs font-medium text-[#a8a8a8]">
                   Grade {balanceGrade}
                 </div>
               </div>
             </div>
-            <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-300">
+            <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-[#a8a8a8]">
               Ratios
             </h3>
             <div className="flex flex-wrap gap-3">
@@ -299,10 +342,24 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
 
                 const badge =
                   category === 'balanced'
-                    ? { text: '(balanced)', className: 'bg-teal-500/20 text-teal-200' }
+                    ? { text: 'In range', className: 'bg-[rgba(74,124,89,0.2)] text-[#6fce8c] border border-[rgba(74,124,89,0.4)]' }
                     : category === 'lagging'
-                      ? { text: '(lagging)', className: 'bg-red-500/20 text-red-200' }
-                      : { text: '(overdeveloped)', className: 'bg-amber-500/20 text-amber-200' }
+                      ? { text: 'Fix this', className: 'bg-[rgba(201,79,42,0.2)] text-[#e07a5f] border border-[rgba(201,79,42,0.4)]' }
+                      : { text: 'Close', className: 'bg-[rgba(232,197,71,0.15)] text-[#e8c547] border border-[rgba(232,197,71,0.3)]' }
+
+                const leftBorderClass =
+                  category === 'balanced'
+                    ? 'border-l-4 border-l-[#4a7c59]'
+                    : category === 'lagging'
+                      ? 'border-l-4 border-l-[#c94f2a]'
+                      : 'border-l-4 border-l-[#e8c547]'
+
+                const valueClass =
+                  category === 'balanced'
+                    ? 'text-[#6fce8c]'
+                    : category === 'lagging'
+                      ? 'text-[#e07a5f]'
+                      : 'text-[#e8c547]'
 
                 const ratioGaugeText = (() => {
                   if (!idealForGoal) return `Your ratio: ${r.value}`
@@ -316,31 +373,17 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
                   return `Your ratio: ${r.value} | Ideal: ${rangeLabel} | ✓ In range`
                 })()
 
-                const borderClass =
-                  category === 'balanced'
-                    ? 'border-teal-500/40'
-                    : category === 'lagging'
-                      ? 'border-red-500/50 bg-red-900/20'
-                      : 'border-amber-500/50 bg-amber-900/20'
-
-                const valueClass =
-                  category === 'balanced'
-                    ? 'text-teal-200'
-                    : category === 'lagging'
-                      ? 'text-red-300'
-                      : 'text-amber-200'
-
                 return (
                   <div
                     key={r.id}
-                    className={`flex-1 min-w-[160px] rounded-lg border bg-slate-700/30 p-3 ${borderClass}`}
+                    className={`flex-1 min-w-[160px] rounded-none border border-[#2a2a2a] bg-[#111111] p-3 ${leftBorderClass}`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <div className="text-xs font-medium text-slate-200">
+                      <div className="text-xs font-medium text-[#a8a8a8]">
                         {r.label}
                       </div>
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${badge.className}`}
+                        className={`inline-block px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.className}`}
                       >
                         {badge.text}
                       </span>
@@ -349,8 +392,8 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
                       <p
                         className={`mt-1 text-[11px] font-medium ${
                           category === 'lagging'
-                            ? 'text-red-300/90'
-                            : 'text-amber-200/90'
+                            ? 'text-[#e07a5f]'
+                            : 'text-[#e8c547]'
                         }`}
                       >
                         {imbalanceCallout}
@@ -359,14 +402,14 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
                     <div className={`mt-1 text-sm font-semibold ${valueClass}`}>
                       {r.value}
                     </div>
-                    <p className="mt-0.5 text-[11px] text-slate-300">
+                    <p className="mt-0.5 text-[11px] text-[#555]">
                       {ratioGaugeText}
                     </p>
-                    <p className="mt-1 text-xs font-light text-slate-200">
+                    <p className="mt-1 text-xs font-light text-[#a8a8a8]">
                       {ratioSentence}
                     </p>
                     {category !== 'balanced' && (
-                      <p className="mt-0.5 text-[11px] text-slate-300">
+                      <p className="mt-0.5 text-[11px] text-[#555]">
                         {category === 'lagging'
                           ? 'A lagging ratio like this can hide weak links that cap your overall strength and push extra stress into nearby joints.'
                           : 'A dominant ratio like this often reflects technique gaps or muscle imbalances that can increase injury risk over time.'}
@@ -382,12 +425,12 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
         <div className="flex items-center gap-2">
           <span
             title={confidenceWhy}
-            className={`rounded px-2 py-0.5 text-xs font-medium ${
+            className={`rounded-none px-2 py-0.5 text-xs font-medium ${
               result.confidence === 'High'
-                ? 'bg-teal-500/20 text-teal-300'
+                ? 'bg-[rgba(74,124,89,0.2)] text-[#6fce8c]'
                 : result.confidence === 'Medium'
-                  ? 'bg-amber-500/20 text-amber-300'
-                  : 'bg-red-500/20 text-red-300'
+                  ? 'bg-[rgba(232,197,71,0.15)] text-[#e8c547]'
+                  : 'bg-[rgba(201,79,42,0.2)] text-[#e07a5f]'
             }`}
           >
             Confidence: {result.confidence}
@@ -399,33 +442,33 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
               setShowConfidenceWhy((v) => !v)
               navigator.clipboard?.writeText(confidenceWhy)
             }}
-            className="text-xs font-light text-slate-400 underline hover:text-teal-300"
+            className="text-xs font-light text-[#555] underline hover:text-[#e8c547]"
           >
             Why?
           </button>
         </div>
         {showConfidenceWhy && (
-          <p className="text-xs font-light text-slate-300">{confidenceWhy}</p>
+          <p className="text-xs font-light text-[#a8a8a8]">{confidenceWhy}</p>
         )}
       </div>
 
-      {/* Bottom: Top 3 recommendations with sets, reps, weights */}
-      <div className="mb-5">
-          <h3 className="mb-3 text-sm font-medium text-slate-200">
+      {/* Top 3 recommendations */}
+      <div className="mb-6">
+        <h3 className="mb-3 text-sm font-medium text-[#e8e5df]">
           Top 3 recommendations
         </h3>
         <ol className="space-y-3">
           {top3.map((a, i) => (
             <li
               key={i}
-              className="flex items-start gap-3 rounded-lg border border-slate-500/50 bg-slate-700/30 p-3"
+              className="flex items-start gap-3 rounded-none border border-[#2a2a2a] bg-[#111111] p-3"
             >
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-teal-600/80 text-xs font-medium text-white">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-none bg-[#e8c547] text-xs font-medium text-[#0a0a0a]">
                 {i + 1}
               </span>
               <div className="min-w-0 flex-1">
                 {a.forImbalance && (
-                  <p className="text-xs font-medium text-teal-300/90">
+                  <p className="text-xs font-medium text-[#e8c547]">
                     Addresses: {a.forImbalance}
                   </p>
                 )}
@@ -433,24 +476,24 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
                   const display = getAccessoryDisplay(a.name)
                   return (
                     <>
-                      <p className="text-sm font-semibold text-white">
+                      <p className="text-sm font-semibold text-[#f5f2ec]">
                         {display.exercise}
                       </p>
                       {display.pattern && (
-                        <p className="text-xs text-slate-300">
+                        <p className="text-xs text-[#a8a8a8]">
                           {display.pattern}
                         </p>
                       )}
                     </>
                   )
                 })()}
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm font-light text-slate-300">
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm font-light text-[#a8a8a8]">
                   <span>
-                    <strong className="text-slate-200">{a.setsReps}</strong>
+                    <strong className="text-[#e8e5df]">{a.setsReps}</strong>
                   </span>
                   {a.suggestedWeight != null && (
                     <span>
-                      <strong className="text-slate-200">
+                      <strong className="text-[#e8e5df]">
                         {a.suggestedWeight} {form.units}
                       </strong>
                       {' '}
@@ -459,111 +502,73 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
                   )}
                 </div>
                 {a.cue && (
-                  <p className="mt-1 text-xs text-slate-400">{a.cue}</p>
+                  <p className="mt-1 text-xs text-[#555]">{a.cue}</p>
                 )}
               </div>
             </li>
           ))}
         </ol>
+        <p className="mt-4 text-sm text-[#a8a8a8]">
+          Add these to the end of your next 3 sessions. Come back in 4–8 weeks and retest — most people see meaningful ratio shifts in that window.
+        </p>
       </div>
 
       {/* Coach notes (coach mode only) */}
       {coachMode && (
         <div className="mb-6">
-          <label className="mb-2 block text-sm font-medium text-slate-200">
-            Coach notes <span className="text-slate-400">(included in PDF)</span>
+          <label className="mb-2 block text-sm font-medium text-[#a8a8a8]">
+            Coach notes <span className="text-[#555]">(included in PDF)</span>
           </label>
           <textarea
             value={coachNotesLocal}
             onChange={(e) => setCoachNotesLocal(e.target.value)}
             placeholder="Key cues, programming notes, next check-in…"
             rows={4}
-            className="w-full rounded-lg border border-slate-500/50 bg-slate-700/50 px-4 py-3 text-sm font-light text-white placeholder:text-slate-400 focus:border-teal-500/50 focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+            className="w-full rounded-none border border-[#2a2a2a] bg-[#111111] px-4 py-3 text-sm font-light text-[#f5f2ec] placeholder:text-[#555] focus:border-[#e8c547] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/30"
           />
         </div>
       )}
 
-      {/* Save / progress tracking CTA */}
-      <div className="mb-6 rounded-lg border border-slate-500/50 bg-slate-700/30 p-4">
-        <p className="text-sm font-medium text-slate-100">Track your progress</p>
-        <p className="mt-1 text-sm font-light text-slate-200">
+      {/* Track your progress reminder */}
+      <div className="mb-6 rounded-none border border-[#2a2a2a] bg-[#111111] p-4">
+        <p className="text-sm font-medium text-[#f5f2ec]">Track your progress</p>
+        <p className="mt-1 text-sm font-light text-[#a8a8a8]">
           Come back in 4 weeks and re-enter your lifts to see how your ratios have shifted. Your imbalances typically respond within 2–3 training blocks.
         </p>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
           <button
             type="button"
             onClick={handleReminder}
-            className="flex-1 rounded-lg border border-teal-500/40 bg-teal-500/10 px-4 py-2.5 text-sm font-medium text-teal-200 hover:bg-teal-500/15"
+            className="flex-1 rounded-none border border-[#e8c547]/40 bg-[#e8c547]/10 px-4 py-2.5 text-sm font-medium text-[#e8c547] hover:bg-[#e8c547]/15"
           >
             Set a reminder (4 weeks)
           </button>
         </div>
-        <p className="mt-2 text-xs text-slate-400">Reminder date: {reminderISO} (copied/shared when tapped).</p>
+        <p className="mt-2 text-xs text-[#555]">Reminder date: {reminderISO} (copied/shared when tapped).</p>
       </div>
 
-      {/* Email capture for 8-week retest reminder */}
-      <div className="mb-5 rounded-lg border border-slate-500/50 bg-slate-700/30 p-4">
-        {!emailSubmitted ? (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (!email.trim()) return
-              console.log('Retest reminder email:', email.trim())
-              setEmailSubmitted(true)
-            }}
-            className="space-y-3"
-          >
-            <p className="text-sm font-medium text-slate-100">
-              Want a reminder to retest in 8 weeks? Drop your email below.
-            </p>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="w-full rounded-lg border border-slate-500/60 bg-slate-800/70 px-3 py-2.5 text-sm text-white placeholder:text-slate-400 focus:border-teal-500/60 focus:outline-none focus:ring-2 focus:ring-teal-500/40"
-                required
-              />
-              <button
-                type="submit"
-                className="shrink-0 rounded-lg bg-teal-600/80 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:ring-offset-2 focus:ring-offset-slate-700"
-              >
-                Get reminder
-              </button>
-            </div>
-            <p className="text-[11px] text-slate-400">
-              We’ll only use this to send a one-time reminder to re-test your ratios.
-            </p>
-          </form>
-        ) : (
-          <p className="text-sm font-medium text-teal-200">
-            Got it — we&apos;ll remind you to retest in about 8 weeks.
-          </p>
-        )}
-      </div>
-
-      <p className="mb-4 text-xs text-slate-400">
-        Informational only — not medical advice. Consult a professional for
-        injuries.
-      </p>
-
-      <button
-        type="button"
-        onClick={handleExport}
-        className="w-full rounded-lg bg-teal-600/80 px-4 py-3 font-medium text-white hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:ring-offset-2 focus:ring-offset-slate-600"
-      >
-        Export PDF
-      </button>
-      {onSaveScenario && (
+      {/* PDF export and Save: bottom, secondary */}
+      <div className="flex flex-wrap items-center gap-3 border-t border-[#2a2a2a] pt-6">
         <button
           type="button"
-          onClick={onSaveScenario}
-          className="mt-3 w-full rounded-lg border border-slate-500/60 bg-slate-700/60 px-4 py-2.5 text-sm font-medium text-slate-100 hover:bg-slate-600/60"
+          onClick={handleExport}
+          className="text-sm font-medium text-[#a8a8a8] underline hover:text-[#e8c547] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/30"
         >
-          Save this report
+          Export PDF
         </button>
-      )}
+        {onSaveScenario && (
+          <button
+            type="button"
+            onClick={onSaveScenario}
+            className="rounded-none border border-[#2a2a2a] bg-transparent px-4 py-2 text-sm font-medium text-[#a8a8a8] hover:bg-[#2e2e2e]"
+          >
+            Save this report
+          </button>
+        )}
+      </div>
+      <p className="mt-3 text-xs text-[#555]">
+        For information only — not medical advice. Use your head.
+      </p>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 
 const keyframes = `
@@ -20,16 +20,7 @@ const keyframes = `
 }
 `
 
-function handleSignup(email: string) {
-  // Placeholder: wire this up to your signup system
-  void email
-}
-
 export function LandingPage() {
-  const [email, setEmail] = useState('')
-  const [submittedFrom, setSubmittedFrom] = useState<'hero' | 'final' | null>(null)
-  const heroInputRef = useRef<HTMLInputElement | null>(null)
-
   useEffect(() => {
     const elements = document.querySelectorAll<HTMLElement>('[data-reveal]')
     const observer = new IntersectionObserver(
@@ -49,19 +40,6 @@ export function LandingPage() {
     return () => observer.disconnect()
   }, [])
 
-  const onSubmit = (from: 'hero' | 'final') => {
-    if (!email || !email.includes('@')) {
-      if (from === 'hero') {
-        heroInputRef.current?.focus()
-      }
-      return
-    }
-    handleSignup(email)
-    setSubmittedFrom(from)
-    setEmail('')
-    window.setTimeout(() => setSubmittedFrom(null), 3500)
-  }
-
   return (
     <div
       className="min-h-screen bg-[#0a0a0a] text-[#f5f2ec]"
@@ -71,20 +49,19 @@ export function LandingPage() {
 
       {/* NAV */}
       <nav className="fixed inset-x-0 top-0 z-40 flex items-center justify-between border-b border-[#2a2a2a] bg-[rgba(10,10,10,0.85)] px-10 py-[1.2rem] backdrop-blur-[12px]">
-        <a
-          href="#top"
+        <Link
+          to="/"
           className="text-[1.6rem] tracking-[0.08em] text-[#e8c547] no-underline"
           style={{ fontFamily: '"Bebas Neue", sans-serif' }}
         >
           <span className="text-[#f5f2ec]">RATIO</span> LIFTS
-        </a>
-        <button
-          type="button"
-          onClick={() => heroInputRef.current?.focus()}
-          className="border-none bg-[#e8c547] px-[1.4rem] py-[0.6rem] text-[0.8rem] font-medium tracking-[0.12em] text-[#0a0a0a] transition-transform transition-colors duration-200 uppercase hover:translate-y-[-1px] hover:bg-[#f5d76a]"
+        </Link>
+        <Link
+          to="/"
+          className="border-none bg-[#e8c547] px-[1.4rem] py-[0.6rem] text-[0.8rem] font-medium tracking-[0.12em] text-[#0a0a0a] transition-transform transition-colors duration-200 uppercase hover:translate-y-[-1px] hover:bg-[#f5d76a] no-underline"
         >
-          Join Waitlist
-        </button>
+          Diagnose My Lifts →
+        </Link>
       </nav>
 
       {/* TICKER */}
@@ -161,21 +138,12 @@ export function LandingPage() {
             your weakest gaps.
           </p>
           <div className="mt-8 flex max-w-[460px]" style={{ animation: 'fadeUp 0.7s 0.5s ease both' }}>
-            <input
-              ref={heroInputRef}
-              type="email"
-              placeholder="your@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="flex-1 border border-r-0 border-[#2e2e2e] bg-[#1c1c1c] px-4 py-3 text-[0.9rem] text-[#f5f2ec] outline-none placeholder:text-[#555] focus:border-[#e8c547]"
-            />
-            <button
-              type="button"
-              onClick={() => onSubmit('hero')}
-              className="whitespace-nowrap border-none bg-[#e8c547] px-7 py-3 text-[0.8rem] font-medium tracking-[0.12em] text-[#0a0a0a] transition-transform transition-colors duration-150 uppercase hover:scale-[1.02] hover:bg-[#f5d76a]"
+            <Link
+              to="/"
+              className="w-full border-none bg-[#e8c547] px-7 py-3 text-center text-[0.8rem] font-medium tracking-[0.12em] text-[#0a0a0a] transition-transform transition-colors duration-150 uppercase hover:scale-[1.02] hover:bg-[#f5d76a] no-underline"
             >
-              {submittedFrom === 'hero' ? "✓ You're on the list!" : 'Get Early Access'}
-            </button>
+              Diagnose My Lifts →
+            </Link>
           </div>
           <p
             className="mt-3 text-[0.72rem] tracking-[0.05em] text-[#555]"
@@ -714,7 +682,7 @@ export function LandingPage() {
         <div className="relative z-10">
           <div className="mb-4 flex items-center justify-center gap-[0.6rem] text-[0.68rem] font-medium uppercase tracking-[0.22em] text-black/50">
             <span className="inline-block h-px w-5 bg-black/30" />
-            Join the Waitlist
+            Run your diagnosis
           </div>
           <h2
             className="mx-auto mb-3 max-w-[700px] text-[clamp(3rem,6vw,6rem)] leading-[0.95] tracking-[0.02em] text-[#0a0a0a]"
@@ -730,24 +698,15 @@ export function LandingPage() {
             with data.
           </h2>
           <p className="mx-auto mb-10 max-w-[460px] text-[1rem] text-black/65">
-            Join the waitlist for free early access. Be first to know when Ratio Lifts launches — and get a founding
-            member discount.
+            Plug in your lifts and get your weak link in under a minute.
           </p>
           <div className="mx-auto flex max-w-[460px]">
-            <input
-              type="email"
-              placeholder="your@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="flex-1 border border-r-0 border-black/20 bg-black/10 px-4 py-3 text-[0.9rem] text-[#0a0a0a] outline-none placeholder:text-black/40"
-            />
-            <button
-              type="button"
-              onClick={() => onSubmit('final')}
-              className="whitespace-nowrap border-none bg-[#0a0a0a] px-7 py-3 text-[0.8rem] font-medium tracking-[0.12em] text-[#e8c547] transition-colors duration-200 uppercase hover:bg-[#111111]"
+            <Link
+              to="/"
+              className="w-full whitespace-nowrap border-none bg-[#0a0a0a] px-7 py-3 text-[0.8rem] font-medium tracking-[0.12em] text-[#e8c547] transition-colors duration-200 uppercase hover:bg-[#111111] no-underline"
             >
-              {submittedFrom === 'final' ? "✓ You're on the list!" : 'Get Early Access'}
-            </button>
+              Diagnose My Lifts →
+            </Link>
           </div>
         </div>
       </section>
@@ -768,13 +727,13 @@ export function LandingPage() {
         </div>
       </footer>
 
-      {/* Optional link into the main app */}
+      {/* Optional link into the tool */}
       <div className="fixed bottom-4 right-4 z-40">
         <Link
-          to="/app"
+          to="/"
           className="rounded-full bg-[#111111]/80 px-5 py-2 text-xs font-medium uppercase tracking-[0.14em] text-[#f5f2ec] backdrop-blur hover:bg-[#111111]"
         >
-          Open Strength Tool
+          Diagnose My Lifts →
         </Link>
       </div>
     </div>
