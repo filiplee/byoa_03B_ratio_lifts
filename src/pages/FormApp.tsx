@@ -1,13 +1,14 @@
 import { useState, useCallback, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { Header } from '../components/Header'
 import { LiftCard } from '../components/LiftCard'
-import { SecondarySection } from '../components/SecondarySection'
 import { ResultCard } from '../components/ResultCard'
 import type { FormState, LiftInput, Units, DiagnosticResult } from '../types'
 import { defaultFormState } from '../defaults'
 import { runDiagnostic } from '../calculations'
 import { trackEvent } from '../analytics'
-import type { SavedAthleteScenario } from '../types'
+import { displayToKg, kgToDisplay } from '../units'
+import { Seo } from '../components/Seo'
 
 const EXPERIENCE_OPTIONS: FormState['experience'][] = ['Beginner', 'Intermediate', 'Advanced']
 const FREQUENCY_OPTIONS: FormState['training_frequency'][] = ['1-2', '3-4', '5+']
@@ -30,73 +31,92 @@ function persistUnits(units: Units) {
   }
 }
 
-function loadCoachMode(): boolean {
+const SHARE_PARAM = 's'
+
+function base64UrlEncode(plain: string): string {
+  const bytes = new TextEncoder().encode(plain)
+  let binary = ''
+  for (const b of bytes) binary += String.fromCharCode(b)
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+function base64UrlDecode(encoded: string): string {
+  const b64 = encoded.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = b64 + '==='.slice((b64.length + 3) % 4)
+  const binary = atob(padded)
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0))
+  return new TextDecoder().decode(bytes)
+}
+
+type SharedPayloadV1 = {
+  v: 1
+  units: Units
+  bodyweight?: number
+  gender?: FormState['gender']
+  experience: FormState['experience']
+  training_frequency: FormState['training_frequency']
+  primary_goal: FormState['primary_goal']
+  equipment: string[]
+  injury: boolean
+  injury_notes?: string
+  lifts: FormState['lifts']
+}
+
+function getSharePayloadFromUrl(): SharedPayloadV1 | null {
   try {
-    return localStorage.getItem('ratio-lifts-coach-mode') === '1'
+    const params = new URLSearchParams(window.location.search)
+    const encoded = params.get(SHARE_PARAM)
+    if (!encoded) return null
+    const decodedJson = base64UrlDecode(encoded)
+    const payload = JSON.parse(decodedJson) as SharedPayloadV1
+    if (!payload || payload.v !== 1) return null
+    return payload
   } catch {
-    /* ignore */
-    return false
+    return null
   }
 }
 
-function persistCoachMode(v: boolean) {
-  try {
-    localStorage.setItem('ratio-lifts-coach-mode', v ? '1' : '0')
-  } catch {
-    /* ignore */
-  }
-}
-
-function loadCoachName(): string | undefined {
-  try {
-    const s = localStorage.getItem('ratio-lifts-coach-name')
-    return s ? s : undefined
-  } catch {
-    /* ignore */
-    return undefined
-  }
-}
-
-function persistCoachName(name: string | undefined) {
-  try {
-    if (!name) localStorage.removeItem('ratio-lifts-coach-name')
-    else localStorage.setItem('ratio-lifts-coach-name', name)
-  } catch {
-    /* ignore */
-  }
-}
-
-const ATHLETES_KEY = 'ratio-lifts-saved-athletes-v1'
-
-function loadSavedAthletes(): SavedAthleteScenario[] {
-  try {
-    const raw = localStorage.getItem(ATHLETES_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as SavedAthleteScenario[]
-    return Array.isArray(parsed) ? parsed.slice(0, 10) : []
-  } catch {
-    /* ignore */
-    return []
-  }
-}
-
-function persistSavedAthletes(rows: SavedAthleteScenario[]) {
-  try {
-    localStorage.setItem(ATHLETES_KEY, JSON.stringify(rows.slice(0, 10)))
-  } catch {
-    /* ignore */
-  }
-}
-
-export default function FormApp() {
-  const [form, setForm] = useState<FormState>(() => ({
+function buildFormFromSharePayload(payload: SharedPayloadV1): FormState {
+  return {
     ...defaultFormState,
-    units: loadPersistedUnits(),
-    coach_mode: loadCoachMode(),
-    coach_name: loadCoachName(),
-  }))
-  const [result, setResult] = useState<DiagnosticResult | null>(null)
-  const [savedAthletes, setSavedAthletes] = useState<SavedAthleteScenario[]>(() => loadSavedAthletes())
+    units: payload.units,
+    bodyweight: payload.bodyweight,
+    gender: payload.gender ?? 'prefer_not_to_say',
+    experience: payload.experience,
+    training_frequency: payload.training_frequency,
+    primary_goal: payload.primary_goal,
+    lifts: payload.lifts,
+    equipment: payload.equipment,
+    injury: payload.injury,
+    injury_notes: payload.injury_notes,
+    coach_mode: false,
+    athlete_name: undefined,
+    coach_name: undefined,
+  }
+}
+
+export default function FormApp({ onRetestReportGenerated }: { onRetestReportGenerated?: () => void }) {
+  const [form, setForm] = useState<FormState>(() => {
+    const payload = getSharePayloadFromUrl()
+    if (payload) return buildFormFromSharePayload(payload)
+    return { ...defaultFormState, units: loadPersistedUnits() }
+  })
+  const [result, setResult] = useState<DiagnosticResult | null>(() => {
+    const payload = getSharePayloadFromUrl()
+    if (!payload) return null
+    const nextForm = buildFormFromSharePayload(payload)
+    if (typeof nextForm.bodyweight !== 'number' || nextForm.bodyweight <= 0) return null
+    return runDiagnostic(nextForm.lifts, {
+      bodyweight: nextForm.bodyweight,
+      gender: nextForm.gender,
+      experience: nextForm.experience,
+      injury: nextForm.injury,
+      injury_notes: nextForm.injury_notes,
+      equipment: nextForm.equipment,
+      training_frequency: nextForm.training_frequency,
+    })
+  })
+  const [isGenerating, setIsGenerating] = useState(false)
 
   const updateForm = useCallback((patch: Partial<FormState>) => {
     setForm((prev) => ({ ...prev, ...patch }))
@@ -110,14 +130,6 @@ export default function FormApp() {
     [updateForm],
   )
 
-  const setCoachMode = useCallback(
-    (next: boolean) => {
-      updateForm({ coach_mode: next })
-      persistCoachMode(next)
-    },
-    [updateForm],
-  )
-
   const setLift = useCallback((index: number, lift: LiftInput) => {
     setForm((prev) => {
       const next = [...prev.lifts]
@@ -126,48 +138,76 @@ export default function FormApp() {
     })
   }, [])
 
-  const handleSelectAthlete = useCallback(
-    (id: string) => {
-      const row = savedAthletes.find((a) => a.id === id)
-      if (!row) return
-      setForm(row.form)
-      setResult(row.result)
-      trackEvent('coach_load_athlete')
-    },
-    [savedAthletes],
-  )
-
-  const handleSaveScenario = useCallback(() => {
+  const handleSaveScenario = useCallback(async () => {
     if (!result) return
-    const primary = result.flags.find((f) => !f.id.startsWith('typical_'))?.label ?? null
-    const row: SavedAthleteScenario = {
-      id: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
-      athleteName: form.athlete_name ?? 'Unnamed',
-      savedAt: new Date().toISOString(),
-      primaryImbalance: primary,
-      form,
-      result,
+    const payload: SharedPayloadV1 = {
+      v: 1,
+      units: form.units,
+      bodyweight: form.bodyweight,
+      gender: form.gender,
+      experience: form.experience,
+      training_frequency: form.training_frequency,
+      primary_goal: form.primary_goal,
+      equipment: form.equipment,
+      injury: form.injury,
+      injury_notes: form.injury_notes,
+      lifts: form.lifts,
     }
-    const next = [row, ...savedAthletes].slice(0, 10)
-    setSavedAthletes(next)
-    persistSavedAthletes(next)
-    trackEvent('coach_save_athlete')
-  }, [form, result, savedAthletes])
+
+    const encoded = base64UrlEncode(JSON.stringify(payload))
+
+    const url = new URL(window.location.href)
+    url.searchParams.set(SHARE_PARAM, encoded)
+    // Persist the share link without triggering a full reload.
+    window.history.replaceState({}, '', url.toString())
+
+    // Clipboard is best-effort; the UI will show a toast either way.
+    await navigator.clipboard.writeText(url.toString())
+  }, [form, result])
 
   const handleGenerate = () => {
+    if (isGenerating) return
+    if (typeof form.bodyweight !== 'number' || form.bodyweight <= 0) return
+    const hasEnoughLiftsNow = form.lifts.some(
+      (l) =>
+        (l.method === 'one_rm' && l.one_rm != null && l.one_rm > 0) ||
+        (l.method === 'weight_reps' &&
+          l.weight != null &&
+          l.weight > 0 &&
+          l.reps != null &&
+          l.reps >= 1 &&
+          l.reps <= 20),
+    )
+    if (!hasEnoughLiftsNow) return
+    onRetestReportGenerated?.()
+    setIsGenerating(true)
     trackEvent('form_complete')
+    const startedAt = Date.now()
     const diagnostic = runDiagnostic(form.lifts, {
       bodyweight: form.bodyweight,
+      gender: form.gender,
       experience: form.experience,
       injury: form.injury,
       injury_notes: form.injury_notes,
+      equipment: form.equipment,
+      training_frequency: form.training_frequency,
     })
-    setResult(diagnostic)
+    const elapsed = Date.now() - startedAt
+    const remaining = Math.max(0, 300 - elapsed)
+    window.setTimeout(() => {
+      setResult(diagnostic)
+      setIsGenerating(false)
+    }, remaining)
   }
 
   useEffect(() => {
     trackEvent('form_start')
   }, [])
+
+  useEffect(() => {
+    if (!result) return
+    document.getElementById('results-top')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [result])
 
   const hasEnoughLifts = form.lifts.some(
     (l) =>
@@ -179,38 +219,73 @@ export default function FormApp() {
         l.reps >= 1 &&
         l.reps <= 20),
   )
+  const hasBodyweight = typeof form.bodyweight === 'number' && form.bodyweight > 0
+  const canGenerate = hasBodyweight && hasEnoughLifts
+
+  const GOALS: FormState['primary_goal'][] = ['Strength', 'Hypertrophy', 'Power', 'Rehab']
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a]">
+    <>
+      <Seo
+        config={{
+          title: 'Ratio Lifts — Strength Report',
+          description:
+            'Enter your body weight and lift numbers to find your weak-link ratios and get tailored accessory work. Free during beta.',
+          canonicalUrl: 'https://myliftsucks.com/',
+          ogImageUrl: 'https://myliftsucks.com/og-image.png',
+        }}
+      />
+      <div className="min-h-screen bg-[#0a0a0a]">
       <Header
         units={form.units}
         onUnitsChange={setUnits}
-        coachMode={!!form.coach_mode}
-        onCoachModeChange={setCoachMode}
-        savedAthletes={savedAthletes.map((a) => ({
-          id: a.id,
-          label: `${a.athleteName || 'Unnamed'} · ${new Date(a.savedAt).toLocaleDateString()}${
-            a.primaryImbalance ? ` · ${a.primaryImbalance}` : ''
-          }`,
-        }))}
-        onSelectAthlete={handleSelectAthlete}
       />
 
-      <main className={`mx-auto px-6 pb-28 pt-6 ${result ? 'max-w-4xl' : 'max-w-lg'}`}>
+      <main className={`mx-auto px-6 pb-28 pt-[73px] ${result ? 'max-w-4xl' : 'max-w-lg'}`}>
         {/* Hero: tight, one screen max */}
         <header className="mb-8 text-center">
           <h1 className="font-display text-[clamp(2.5rem,6vw,4rem)] leading-[0.95] tracking-[0.02em] text-[#f5f2ec]">
             FIND YOUR
             <br />
-            <span className="text-[#e8c547]">WEAK LINK</span>
+            <span
+              className="italic text-[#e8c547]"
+              style={{ fontFamily: '"DM Serif Display", serif', fontStyle: 'italic' }}
+            >
+              Weak Link
+            </span>
           </h1>
           <p className="mt-3 text-[#a8a8a8] text-base sm:text-lg">
             Enter your lifts. Get your diagnosis. Know exactly what to fix.
           </p>
         </header>
 
-        {/* Lifts first */}
-        <div className="mb-8 grid grid-cols-1 gap-5 lg:grid-cols-2">
+        {/* Bodyweight (required) */}
+        <div className="mb-8">
+          <label htmlFor="bodyweight" className="mb-1 block text-xs font-medium text-[#a8a8a8]">
+            Body Weight
+          </label>
+          <input
+            id="bodyweight"
+            type="number"
+            inputMode="decimal"
+            min={0}
+            step={0.5}
+            placeholder="—"
+            required
+            value={form.bodyweight == null ? '' : kgToDisplay(form.bodyweight, form.units)}
+            onChange={(e) =>
+              updateForm({
+                bodyweight:
+                  e.target.value === '' ? undefined : displayToKg(Number(e.target.value), form.units),
+              })
+            }
+            className="w-full rounded-none border border-[#2a2a2a] bg-[#1c1c1c] px-4 py-3 font-light text-[#f5f2ec] placeholder:text-[#555] focus:border-[#e8c547] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/30"
+          />
+          <p className="mt-1.5 text-[11px] text-[#555]">Unlocks your strength percentile and full radar breakdown.</p>
+        </div>
+
+        {/* Lifts (2x2 on tablet+) */}
+        <div className="mb-8 grid grid-cols-1 gap-5 md:grid-cols-2">
           {form.lifts.slice(0, 4).map((lift, i) => (
             <LiftCard
               key={lift.id}
@@ -223,43 +298,43 @@ export default function FormApp() {
           ))}
         </div>
 
-        {/* Profile: bodyweight, experience, frequency */}
-        <div className="mb-8 grid grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="bodyweight" className="mb-1 block text-xs font-medium text-[#a8a8a8]">
-              Bodyweight (optional)
-            </label>
-            <input
-              id="bodyweight"
-              type="number"
-              inputMode="decimal"
-              min={0}
-              step={0.5}
-              placeholder="—"
-              value={form.bodyweight ?? ''}
-              onChange={(e) =>
-                updateForm({ bodyweight: e.target.value === '' ? undefined : Number(e.target.value) })
-              }
-              className="w-full rounded-none border border-[#2a2a2a] bg-[#1c1c1c] px-4 py-3 font-light text-[#f5f2ec] placeholder:text-[#555] focus:border-[#e8c547] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/30"
-            />
-            <p className="mt-1.5 text-[11px] text-[#555]">
-              Unlocks your strength percentiles and full radar breakdown.
-            </p>
+        {/* Primary goal (inline row) */}
+        <div className="mb-8">
+          <p className="mb-2 text-xs font-medium text-[#a8a8a8]">Primary Goal</p>
+          <div className="flex flex-wrap gap-2">
+            {GOALS.map((g) => (
+              <button
+                key={g}
+                type="button"
+                onClick={() => updateForm({ primary_goal: g })}
+                className={`rounded-none px-3 py-2 text-sm font-medium ${
+                  form.primary_goal === g
+                    ? 'bg-[#e8c547] text-[#0a0a0a]'
+                    : 'bg-[#111111] text-[#a8a8a8] border border-[#2a2a2a] hover:bg-[#2e2e2e]'
+                }`}
+              >
+                {g}
+              </button>
+            ))}
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-[#a8a8a8]">Experience</label>
-            <select
-              value={form.experience}
-              onChange={(e) => updateForm({ experience: e.target.value as FormState['experience'] })}
-              className="w-full rounded-none border border-[#2a2a2a] bg-[#1c1c1c] px-4 py-3 font-light text-[#f5f2ec] focus:border-[#e8c547] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/30"
-            >
-              {EXPERIENCE_OPTIONS.map((e) => (
-                <option key={e} value={e}>
-                  {e}
-                </option>
-              ))}
-            </select>
-          </div>
+          <p className="mt-2 text-[11px] text-[#555]">
+            Your goal affects the ideal ratios and accessory recommendations.
+          </p>
+        </div>
+
+        <div className="mb-8">
+          <label className="mb-1 block text-xs font-medium text-[#a8a8a8]">Experience Level</label>
+          <select
+            value={form.experience}
+            onChange={(e) => updateForm({ experience: e.target.value as FormState['experience'] })}
+            className="w-full rounded-none border border-[#2a2a2a] bg-[#1c1c1c] px-4 py-3 font-light text-[#f5f2ec] focus:border-[#e8c547] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/30"
+          >
+            {EXPERIENCE_OPTIONS.map((e) => (
+              <option key={e} value={e}>
+                {e}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="mb-8">
@@ -284,97 +359,83 @@ export default function FormApp() {
           </div>
         </div>
 
-        {form.coach_mode && (
-          <div className="mb-8 rounded-none border border-[#2a2a2a] bg-[#1c1c1c] p-5">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="coachName" className="mb-1 block text-xs font-medium text-[#a8a8a8]">
-                  Coach name
-                </label>
+        {/* Equipment available */}
+        <div className="mb-8">
+          <label className="mb-2 block text-xs font-medium text-[#a8a8a8]">Equipment Available</label>
+          <div className="flex flex-wrap gap-2">
+            {['Barbell', 'Dumbbells', 'Kettlebell', 'Bands', 'Cable', 'Bodyweight'].map((e) => (
+              <label
+                key={e}
+                className="flex items-center gap-1.5 rounded-none bg-[#111111] border border-[#2a2a2a] px-3 py-2 text-sm text-[#a8a8a8]"
+              >
                 <input
-                  id="coachName"
-                  type="text"
-                  placeholder="e.g. Coach Lee"
-                  value={form.coach_name ?? ''}
-                  onChange={(e) => {
-                    const next = e.target.value || undefined
-                    updateForm({ coach_name: next })
-                    persistCoachName(next)
+                  type="checkbox"
+                  checked={form.equipment.includes(e)}
+                  onChange={() => {
+                    const next = form.equipment.includes(e) ? form.equipment.filter((x) => x !== e) : [...form.equipment, e]
+                    updateForm({ equipment: next })
                   }}
-                  className="w-full rounded-none border border-[#2a2a2a] bg-[#111111] px-4 py-3 font-light text-[#f5f2ec] placeholder:text-[#555] focus:border-[#e8c547] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/30"
+                  className="rounded-none border-[#2a2a2a] bg-[#111111] text-[#e8c547] focus:ring-[#e8c547]/50"
                 />
-              </div>
-              <div>
-                <label htmlFor="athleteName" className="mb-1 block text-xs font-medium text-[#a8a8a8]">
-                  Athlete name
-                </label>
-                <input
-                  id="athleteName"
-                  type="text"
-                  placeholder="e.g. Alex P."
-                  value={form.athlete_name ?? ''}
-                  onChange={(e) => updateForm({ athlete_name: e.target.value || undefined })}
-                  className="w-full rounded-none border border-[#2a2a2a] bg-[#111111] px-4 py-3 font-light text-[#f5f2ec] placeholder:text-[#555] focus:border-[#e8c547] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/30"
-                />
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-[#555]">Included in PDF export.</p>
+                {e}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Generate */}
+        {!result && (
+          <div className="mb-8">
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={isGenerating || !canGenerate}
+              className="w-full rounded-none bg-[#e8c547] px-4 py-3 font-medium text-[#0a0a0a] hover:bg-[#f5d76a] disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#e8c547]/50 focus:ring-offset-2 focus:ring-offset-[#0a0a0a]"
+            >
+              {isGenerating ? 'Analyzing…' : 'Find my weak link'}
+            </button>
+            <p className="mt-2 text-center text-xs text-[#555]">
+              For information only — not medical advice. Use your head.
+            </p>
           </div>
         )}
 
-        <div className="mb-8">
-          <SecondarySection form={form} onChange={updateForm} />
-        </div>
-
-        {/* Generate: one click, no gate */}
-        <div className="mb-8">
-          <button
-            type="button"
-            onClick={result ? () => setResult(null) : handleGenerate}
-            disabled={!hasEnoughLifts && !result}
-            className="w-full rounded-none bg-[#e8c547] px-4 py-3 font-medium text-[#0a0a0a] hover:bg-[#f5d76a] disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#e8c547]/50 focus:ring-offset-2 focus:ring-offset-[#0a0a0a]"
-          >
-            {result ? 'Start over' : 'Find my weak link'}
-          </button>
-          <p className="mt-2 text-center text-xs text-[#555]">
-            For information only — not medical advice. Use your head.
-          </p>
-        </div>
-
         {result && (
           <div className="mb-8">
+            <button
+              type="button"
+              onClick={() => setResult(null)}
+              className="mb-4 text-left text-xs font-light text-[#a8a8a8] underline hover:text-[#e8c547]"
+            >
+              Start over
+            </button>
             <ResultCard
               form={form}
               result={result}
               coachMode={!!form.coach_mode}
               onSaveScenario={handleSaveScenario}
             />
-            {result.oneRMs.length < 2 && (
-              <p className="mt-4 text-sm text-[#a8a8a8]">Add another lift to get ratio diagnostics.</p>
-            )}
           </div>
         )}
       </main>
 
-      <footer className="fixed bottom-0 left-0 right-0 z-10 border-t border-[#2a2a2a] bg-[rgba(10,10,10,0.9)] px-6 py-4 backdrop-blur">
-        <div className="mx-auto flex max-w-lg flex-col gap-3">
-          {hasEnoughLifts && (
-            <button
-              type="button"
-              onClick={result ? () => setResult(null) : handleGenerate}
-              className="w-full rounded-none bg-[#e8c547] px-4 py-3 font-medium text-[#0a0a0a] hover:bg-[#f5d76a] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/50 focus:ring-offset-2 focus:ring-offset-[#0a0a0a]"
-            >
-              {result ? 'Start over' : 'Find my weak link'}
-            </button>
-          )}
-          {!hasEnoughLifts && (
-            <p className="text-center text-xs text-[#555]">
-              Fill in at least one lift above to generate your report.
-            </p>
-          )}
-        </div>
+      {/* Footer: matches /why design reference */}
+      <footer className="flex items-center justify-between border-t border-[#2a2a2a] bg-[#0a0a0a] px-10 py-8 text-[0.75rem] tracking-[0.06em] text-[#555]">
+        <span>© 2025 Ratio Lifts. All rights reserved.</span>
+        <nav className="flex gap-8">
+          <Link to="/privacy" className="text-[#555] no-underline hover:text-[#e8c547]">
+            Privacy
+          </Link>
+          <Link to="/terms" className="text-[#555] no-underline hover:text-[#e8c547]">
+            Terms
+          </Link>
+          <a href="mailto:hello@myliftsucks.com" className="text-[#555] no-underline hover:text-[#e8c547]">
+            Contact
+          </a>
+        </nav>
       </footer>
-    </div>
+      </div>
+    </>
   )
 }
 

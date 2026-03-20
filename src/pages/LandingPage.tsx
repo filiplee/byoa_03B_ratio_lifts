@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { Seo } from '../components/Seo'
 
 const keyframes = `
 @keyframes fadeUp {
@@ -41,10 +42,49 @@ export function LandingPage() {
   }, [])
 
   return (
-    <div
-      className="min-h-screen bg-[#0a0a0a] text-[#f5f2ec]"
-      style={{ fontFamily: '"DM Sans", sans-serif' }}
-    >
+    <>
+      <Seo
+        config={{
+          title: 'How It Works — Ratio Lifts Strength Report',
+          description:
+            'Ratio Lifts maps your squat, bench, deadlift, and overhead press into strength ratios and prescribes the accessory exercises to balance your proportions.',
+          canonicalUrl: 'https://myliftsucks.com/why',
+          ogImageUrl: 'https://myliftsucks.com/og-why.png',
+          jsonLd: {
+            '@context': 'https://schema.org',
+            '@type': 'HowTo',
+            name: 'How Ratio Lifts Works',
+            description:
+              'Enter your lifts and body weight to find your weak link ratios, get a strength profile, and receive tailored accessory recommendations.',
+            step: [
+              {
+                '@type': 'HowToStep',
+                name: 'Enter your body weight and lifts',
+                text: 'Add your squat, bench, deadlift, and overhead press plus your body weight.',
+              },
+              {
+                '@type': 'HowToStep',
+                name: 'Review your ratios and weak link',
+                text: 'See strength ratios, balance score, and a one-line weak link callout.',
+              },
+              {
+                '@type': 'HowToStep',
+                name: 'Follow the prescription for next sessions',
+                text: 'Use the recommended accessory exercises (sets, reps, and suggested working weights).',
+              },
+              {
+                '@type': 'HowToStep',
+                name: 'Retest after 8 weeks',
+                text: 'Re-enter your lifts to track how your ratios shifted and adjust your plan.',
+              },
+            ],
+          },
+        }}
+      />
+      <div
+        className="min-h-screen bg-[#0a0a0a] text-[#f5f2ec]"
+        style={{ fontFamily: '"DM Sans", sans-serif' }}
+      >
       <style>{keyframes}</style>
 
       {/* NAV */}
@@ -54,7 +94,7 @@ export function LandingPage() {
           className="text-[1.6rem] tracking-[0.08em] text-[#e8c547] no-underline"
           style={{ fontFamily: '"Bebas Neue", sans-serif' }}
         >
-          <span className="text-[#f5f2ec]">RATIO</span> LIFTS
+          <span className="text-[#f5f2ec]">MY</span> <span className="text-[#e8c547]">LIFT SUCKS</span>
         </Link>
         <Link
           to="/"
@@ -92,8 +132,7 @@ export function LandingPage() {
             '✦',
           ].map((text, idx) => (
             <span
-              // eslint-disable-next-line react/no-array-index-key
-              key={idx}
+              key={`${idx}-${text}`}
               className={`px-12 text-[0.85rem] tracking-[0.15em] ${
                 text === '✦' ? 'opacity-40' : ''
               }`}
@@ -178,9 +217,8 @@ export function LandingPage() {
             {[
               { label: 'Back Squat', value: '105 kg — 98%', color: '#6fce8c', width: '92%', delay: '0.8s' },
               { label: 'Bench Press', value: '82 kg — 68%', color: '#e8c547', width: '68%', delay: '1.0s' },
-              { label: 'Romanian Deadlift', value: '58 kg — 41%', color: '#c94f2a', width: '41%', delay: '1.2s' },
+              { label: 'Deadlift', value: '160 kg — 52%', color: '#c94f2a', width: '52%', delay: '1.2s' },
               { label: 'Overhead Press', value: '60 kg — 78%', color: '#82c4d4', width: '78%', delay: '1.4s' },
-              { label: 'Hip Thrust', value: '88 kg — 55%', color: '#a89fe8', width: '55%', delay: '1.6s' },
             ].map((row) => (
               <div key={row.label} className="mb-3">
                 <div className="mb-1.5 flex justify-between text-[0.75rem] tracking-[0.08em] text-[#a8a8a8]">
@@ -205,8 +243,8 @@ export function LandingPage() {
               <strong className="text-[#c94f2a]">
                 ⚠ Weak link identified:
               </strong>{' '}
-              Your Romanian Deadlift is your limiting factor. Strengthening your posterior chain will directly unlock
-              your squat and deadlift ceiling.
+              Your Deadlift is your limiting factor. Strengthening your posterior chain will directly unlock your
+              squat and deadlift ceiling.
             </div>
           </div>
         </div>
@@ -274,7 +312,10 @@ export function LandingPage() {
                 },
               ].map((stat) => (
                 <div key={stat.num} className="bg-[#111111] px-6 py-8">
-                  <div className="font-[&quot;Bebas Neue&quot;,theme(fontFamily.sans)] text-[3.2rem] leading-none text-[#f5f2ec]">
+                  <div
+                    className="text-[3.2rem] leading-none text-[#f5f2ec]"
+                    style={{ fontFamily: '"Bebas Neue", sans-serif' }}
+                  >
                     {stat.num.replace(/(\\d+)(.*)/, '$1')}
                     <span className="text-[#e8c547]">
                       {stat.num.replace(/(\\d+)(.*)/, '$2')}
@@ -415,11 +456,9 @@ export function LandingPage() {
               </div>
               {[
                 { lift: 'Back Squat', ideal: 'Baseline', status: 'Strong', badge: 'good' },
-                { lift: 'Deadlift', ideal: '1.2× Squat', status: 'On Track', badge: 'good' },
-                { lift: 'RDL', ideal: '0.8× Squat', status: 'Fix This', badge: 'fix' },
                 { lift: 'Bench Press', ideal: '0.75× Squat', status: 'Close', badge: 'warn' },
+                { lift: 'Deadlift', ideal: '1.2× Squat', status: 'On Track', badge: 'good' },
                 { lift: 'Overhead Press', ideal: '0.65× Bench', status: 'Strong', badge: 'good' },
-                { lift: 'Hip Thrust', ideal: '1.5× Squat', status: 'Close', badge: 'warn' },
               ].map((row) => (
                 <div
                   key={row.lift}
@@ -625,14 +664,20 @@ export function LandingPage() {
             >
               What beta
               <br />
-              testers <span className="font-[&quot;DM Serif Display&quot;,theme(fontFamily.serif)] italic text-[#e8c547]">say.</span>
+              testers{' '}
+              <span
+                className="italic text-[#e8c547]"
+                style={{ fontFamily: '"DM Serif Display", serif' }}
+              >
+                say.
+              </span>
             </h2>
           </div>
           <div className="mt-14 grid gap-[1.5px] bg-[#2a2a2a] md:grid-cols-3">
             {[
               {
                 quote:
-                  "I'd been stuck at the same squat for nine months. One week after following the RDL prescription, everything unlocked. I added 10kg in a month.",
+                  "I'd been stuck at the same squat for nine months. One week after following the Deadlift prescription, everything unlocked. I added 10kg in a month.",
                 attr: 'James T. — Recreational Lifter, 3 yrs training',
               },
               {
@@ -677,7 +722,7 @@ export function LandingPage() {
           className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[18vw] tracking-[0.05em] text-black/10"
           style={{ fontFamily: '"Bebas Neue", sans-serif' }}
         >
-          RATIO LIFTS
+          MY LIFT SUCKS
         </div>
         <div className="relative z-10">
           <div className="mb-4 flex items-center justify-center gap-[0.6rem] text-[0.68rem] font-medium uppercase tracking-[0.22em] text-black/50">
@@ -715,13 +760,13 @@ export function LandingPage() {
       <footer className="flex items-center justify-between border-t border-[#2a2a2a] bg-[#0a0a0a] px-10 py-8 text-[0.75rem] tracking-[0.06em] text-[#555]">
         <div>© 2025 Ratio Lifts. All rights reserved.</div>
         <div className="flex gap-8">
-          <a href="#" className="text-[#555] no-underline hover:text-[#e8c547]">
+          <Link to="/privacy" className="text-[#555] no-underline hover:text-[#e8c547]">
             Privacy
-          </a>
-          <a href="#" className="text-[#555] no-underline hover:text-[#e8c547]">
+          </Link>
+          <Link to="/terms" className="text-[#555] no-underline hover:text-[#e8c547]">
             Terms
-          </a>
-          <a href="#" className="text-[#555] no-underline hover:text-[#e8c547]">
+          </Link>
+          <a href="mailto:hello@myliftsucks.com" className="text-[#555] no-underline hover:text-[#e8c547]">
             Contact
           </a>
         </div>
@@ -736,7 +781,8 @@ export function LandingPage() {
           Diagnose My Lifts →
         </Link>
       </div>
-    </div>
+      </div>
+    </>
   )
 }
 

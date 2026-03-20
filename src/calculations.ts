@@ -9,9 +9,14 @@ import type {
   RatioFlagId,
   ConfidenceLevel,
   FormState,
+  Gender,
   Experience,
   PrimaryGoal,
+  StrengthBand,
+  Units,
 } from './types'
+import { KG_TO_LB } from './units'
+import { VAN_DEN_HOEK_THRESHOLDS } from './data/van_den_hoek_thresholds'
 
 const ROUND_1 = (n: number) => Math.round(n * 10) / 10
 const ROUND_2 = (n: number) => Math.round(n * 100) / 100
@@ -413,6 +418,7 @@ export function getConfidenceReasons(inputs: {
 export function getHeadlineDiagnosis(
   oneRMs: Lift1RM[],
   flags: RatioFlag[],
+  units: Units = 'kg',
 ): string {
   const byLift = get1RMByLift(oneRMs)
   const flagged = flags.filter((f) => !f.id.startsWith('typical_'))
@@ -446,10 +452,8 @@ export function getHeadlineDiagnosis(
     if (targetSquat > byLift.squat) impactKg = ROUND_1(targetSquat - byLift.squat)
   }
 
-  const impactPhrase =
-    impactKg != null && impactKg >= 1
-      ? ` Bringing it in line could add an estimated ${impactKg} kg to your total.`
-      : ''
+  const impactValue = impactKg != null ? (units === 'lb' ? ROUND_1(impactKg * KG_TO_LB) : impactKg) : null
+  const impactPhrase = impactValue != null && impactValue >= 1 ? ` Bringing it in line could add an estimated ${impactValue} ${units} to your total.` : ''
 
   if (primary.id === 'bench_lagging' || primary.id === 'bench_lagging_squat' || primary.id === 'bench_lagging_deadlift') {
     return `Your bench press is your limiting lift — horizontal push and triceps work will help.${impactPhrase}`
@@ -638,16 +642,30 @@ const ACCESSORY_MAP: Record<
     fallback_if_lower_back_pain: ['Hip thrust 3x6', 'Single-leg RDL light'],
   },
   bench_lagging: {
-    priorities: ['Incline Dumbbell Press 3x8', 'Close-grip bench 3x6', 'Cable Triceps Pushdown 3x10'],
+    priorities: [
+      'Incline Dumbbell Press 3x8',
+      'Close-grip bench 3x6',
+      'Cable Triceps Pushdown 3x10',
+      'Dumbbell Overhead Triceps Extension 3x10',
+      'Diamond Push-ups 3x10',
+    ],
   },
   press_weak: {
-    priorities: ['Seated DB press 3x6', 'Face pulls 3x12', 'Lateral raises 3x10'],
+    priorities: ['Push-ups 3x10', 'Seated DB press 3x6', 'Face pulls 3x12', 'Lateral raises 3x10', 'Diamond Push-ups 3x10'],
   },
   squat_dominant: {
     priorities: ['Deadlift Volume Sets 3x5', 'RDL 3x6', 'Block pulls 3x5'],
   },
   press_strong: {
-    priorities: ['Bench Press Volume Sets 3x6', 'Incline bench 3x8', 'Cable Triceps Pushdown 3x10'],
+    priorities: [
+      'Bench Press Volume Sets 3x6',
+      'Dumbbell Floor Press 3x8',
+      'Incline Dumbbell Press 3x8',
+      'Cable Triceps Pushdown 3x10',
+      'Dumbbell Overhead Triceps Extension 3x10',
+      'Diamond Push-ups 3x10',
+      'Push-ups 3x10',
+    ],
   },
   // Lower-to-upper cross-body flags
   squat_lagging_bench: {
@@ -655,28 +673,40 @@ const ACCESSORY_MAP: Record<
     fallback_if_knee_injury: ['Romanian deadlift 3x6', 'Glute bridge 3x8'],
   },
   bench_lagging_squat: {
-    priorities: ['Incline Dumbbell Press 3x8', 'Close-grip bench 3x6', 'Cable Triceps Pushdown 3x10'],
+    priorities: [
+      'Incline Dumbbell Press 3x8',
+      'Close-grip bench 3x6',
+      'Cable Triceps Pushdown 3x10',
+      'Dumbbell Overhead Triceps Extension 3x10',
+      'Diamond Push-ups 3x10',
+    ],
   },
   deadlift_lagging_bench: {
     priorities: ['RDL 3x6', 'Glute bridge 3x8', 'Hamstring curl 3x10'],
     fallback_if_lower_back_pain: ['Hip thrust 3x6', 'Single-leg RDL light'],
   },
   bench_lagging_deadlift: {
-    priorities: ['Incline Dumbbell Press 3x8', 'Close-grip bench 3x6', 'Cable Triceps Pushdown 3x10'],
+    priorities: [
+      'Incline Dumbbell Press 3x8',
+      'Close-grip bench 3x6',
+      'Cable Triceps Pushdown 3x10',
+      'Dumbbell Overhead Triceps Extension 3x10',
+      'Diamond Push-ups 3x10',
+    ],
   },
   squat_lagging_press: {
     priorities: ['Pause Squat 3x5', 'Bulgarian Split Squat 3x8', 'Box Squat 3x10'],
     fallback_if_knee_injury: ['Romanian deadlift 3x6', 'Glute bridge 3x8'],
   },
   press_lagging_squat: {
-    priorities: ['Seated DB press 3x6', 'Face pulls 3x12', 'Lateral raises 3x10'],
+    priorities: ['Push-ups 3x10', 'Seated DB press 3x6', 'Face pulls 3x12', 'Lateral raises 3x10', 'Diamond Push-ups 3x10'],
   },
   deadlift_lagging_press: {
     priorities: ['RDL 3x6', 'Glute bridge 3x8', 'Hamstring curl 3x10'],
     fallback_if_lower_back_pain: ['Hip thrust 3x6', 'Single-leg RDL light'],
   },
   press_lagging_deadlift: {
-    priorities: ['Seated DB press 3x6', 'Face pulls 3x12', 'Lateral raises 3x10'],
+    priorities: ['Push-ups 3x10', 'Seated DB press 3x6', 'Face pulls 3x12', 'Lateral raises 3x10', 'Diamond Push-ups 3x10'],
   },
 }
 
@@ -688,36 +718,193 @@ export const TYPICAL_RATIO_BW: Record<LiftId, number> = {
   press: 0.6,
 }
 
-// Experience-adjusted typical ratioBW anchors.
-// These are heuristic reference points (not a normative standard).
-export const TYPICAL_RATIO_BW_BY_EXPERIENCE: Record<Experience, Record<LiftId, number>> = {
-  Beginner: { squat: 1.0, bench: 0.75, deadlift: 1.25, press: 0.45 },
-  Intermediate: TYPICAL_RATIO_BW,
-  Advanced: { squat: 1.75, bench: 1.3, deadlift: 2.05, press: 0.8 },
+const KILGORE_OHP_THRESHOLDS = {
+  male: {
+    bwRatios: { p10: 0.35, p25: 0.50, p50: 0.65, p75: 0.80, p90: 1.00 },
+  },
+  female: {
+    bwRatios: { p10: 0.20, p25: 0.30, p50: 0.40, p75: 0.52, p90: 0.65 },
+  },
+} as const
+
+const clamp01 = (t: number): number => Math.max(0, Math.min(1, t))
+const lerp = (a: number, b: number, t: number): number => a + (b - a) * t
+
+type PercentileAnchors = { p10: number; p25: number; p50: number; p75: number; p90: number }
+type VanDenHoekGender = 'male' | 'female'
+type VanDenHoekWeightClass = number | 'open'
+type VanDenHoekLift = 'squat' | 'bench' | 'deadlift'
+
+// Narrowly-typed view of the imported threshold table (avoids `any` for linting).
+const VAN_DEN_HOEK_THRESHOLDS_TYPED = VAN_DEN_HOEK_THRESHOLDS as unknown as Record<
+  VanDenHoekGender,
+  Record<VanDenHoekWeightClass, Record<VanDenHoekLift, PercentileAnchors>>
+>
+
+// Interpolate bwRatio → percentile using p10/p25/p50/p75/p90 anchor ratios.
+function interpolatePercentile(bwRatio: number, anchors: PercentileAnchors): number {
+  if (!Number.isFinite(bwRatio) || bwRatio <= 0) return 1
+
+  const { p10, p25, p50, p75, p90 } = anchors
+
+  if (bwRatio <= p10) {
+    const t = p10 === 0 ? 0 : clamp01(bwRatio / p10)
+    return Math.round(lerp(1, 10, t))
+  }
+  if (bwRatio <= p25) {
+    const t = (bwRatio - p10) / (p25 - p10 || 1e-9)
+    return Math.round(lerp(10, 25, clamp01(t)))
+  }
+  if (bwRatio <= p50) {
+    const t = (bwRatio - p25) / (p50 - p25 || 1e-9)
+    return Math.round(lerp(25, 50, clamp01(t)))
+  }
+  if (bwRatio <= p75) {
+    const t = (bwRatio - p50) / (p75 - p50 || 1e-9)
+    return Math.round(lerp(50, 75, clamp01(t)))
+  }
+  if (bwRatio <= p90) {
+    const t = (bwRatio - p75) / (p90 - p75 || 1e-9)
+    return Math.round(lerp(75, 90, clamp01(t)))
+  }
+
+  // Above p90: extrapolate using the last segment width (p75→p90).
+  const denom = p90 - p75 || 1e-9
+  const t = (bwRatio - p90) / denom
+  return Math.round(lerp(90, 100, clamp01(t)))
 }
 
-function getTypicalRatioBW(liftId: LiftId, experience: Experience): number | undefined {
-  return TYPICAL_RATIO_BW_BY_EXPERIENCE[experience]?.[liftId]
+function getIPFWeightClass(bodyweightKg: number, gender: 'male' | 'female'): number | 'open' {
+  const maleClasses = [53, 59, 66, 74, 83, 93, 105, 120]
+  const femaleClasses = [43, 47, 52, 57, 63, 69, 76, 84]
+  const classes = gender === 'male' ? maleClasses : femaleClasses
+  const match = classes.find((c) => bodyweightKg <= c)
+  return (match ?? 'open') as number | 'open'
 }
 
-/** Compute heuristic percentile from ratioBW (no external dataset). */
+function getLiftPercentile(
+  bwRatio: number,
+  lift: 'squat' | 'bench' | 'deadlift' | 'ohp',
+  gender: 'male' | 'female' | 'prefer_not_to_say',
+  bodyweightKg: number
+): number {
+  // prefer_not_to_say uses male reference tables
+  const g: 'male' | 'female' = gender === 'prefer_not_to_say' ? 'male' : gender
+
+  if (lift === 'ohp') {
+    const anchors = KILGORE_OHP_THRESHOLDS[g].bwRatios
+    return interpolatePercentile(bwRatio, anchors)
+  }
+
+  const weightClass = getIPFWeightClass(bodyweightKg, g)
+  const thresholds = VAN_DEN_HOEK_THRESHOLDS_TYPED[g][weightClass][lift]
+  return interpolatePercentile(bwRatio, thresholds)
+}
+
+function average(nums: number[]): number {
+  if (nums.length === 0) return 0
+  return nums.reduce((sum, n) => sum + n, 0) / nums.length
+}
+
+function deviationToPenalty(deviation: number): number {
+  if (deviation <= 5) return 0
+  if (deviation <= 10) return Math.round(lerp(1, 3, (deviation - 5) / 5))
+  if (deviation <= 20) return Math.round(lerp(4, 7, (deviation - 10) / 10))
+  if (deviation <= 35) return Math.round(lerp(8, 12, (deviation - 20) / 15))
+  if (deviation <= 50) return Math.round(lerp(13, 16, (deviation - 35) / 15))
+  return Math.min(20, Math.round(lerp(17, 20, (deviation - 50) / 20)))
+}
+
+function computeBalancePenalty(liftPercentiles: Record<string, number>): {
+  penalty: number
+  weakestLift: string | null
+  deviation: number
+} {
+  const entries = Object.entries(liftPercentiles)
+  if (entries.length < 2) return { penalty: 0, weakestLift: null, deviation: 0 }
+
+  const mean = entries.reduce((sum, [, p]) => sum + p, 0) / entries.length
+
+  // Find the single lift furthest below the mean
+  let worstLift: string | null = null
+  let worstDeviation = 0
+
+  for (const [lift, percentile] of entries) {
+    const deviation = mean - percentile
+    if (deviation > worstDeviation) {
+      worstDeviation = deviation
+      worstLift = lift
+    }
+  }
+
+  const penalty = deviationToPenalty(worstDeviation)
+  return { penalty, weakestLift: worstLift, deviation: worstDeviation }
+}
+
+function scoreToBand(score: number): StrengthBand {
+  if (score <= 20) return 'Getting Started'
+  if (score <= 40) return 'Developing'
+  if (score <= 60) return 'Intermediate'
+  if (score <= 75) return 'Solid'
+  if (score <= 90) return 'Advanced'
+  return 'Elite'
+}
+
+function computeHeroScore(
+  liftPercentiles: Record<string, number>,
+  balancePenalty: number,
+  weakestLift: string | null,
+  penaltyPoints: number
+): DiagnosticResult['heroScore'] {
+  const rawPercentile = average(Object.values(liftPercentiles))
+  const displayedScore = Math.max(1, Math.min(100, Math.round(rawPercentile - balancePenalty)))
+  const band = scoreToBand(displayedScore)
+
+  return {
+    displayedScore,
+    rawPercentile: Math.round(rawPercentile),
+    balancePenalty,
+    weakestLift,
+    penaltyPoints,
+    band,
+  }
+}
+
 export function computeLiftPercentiles(
   oneRMs: Lift1RM[],
   bodyweight: number | undefined,
-  experience: Experience
+  gender: Gender
 ): LiftPercentile[] {
   if (bodyweight == null || bodyweight <= 0) return []
+
+  const bodyweightKg = bodyweight
   const result: LiftPercentile[] = []
+
   for (const lift of oneRMs) {
-    const typical = getTypicalRatioBW(lift.id, experience)
-    if (typical == null) continue
-    const ratioBW = ROUND_2(lift.oneRM / bodyweight)
-    // Heuristic: 50 + (actual - typical) / typical * 50, clamped 0–100
-    const rawPct = 50 + ((ratioBW - typical) / typical) * 50
-    const percentile = Math.round(Math.max(0, Math.min(100, rawPct)))
+    const ratioBW = ROUND_2(lift.oneRM / bodyweightKg)
+    const tableLift: 'squat' | 'bench' | 'deadlift' | 'ohp' = lift.id === 'press' ? 'ohp' : lift.id
+    const percentile = getLiftPercentile(ratioBW, tableLift, gender, bodyweightKg)
     result.push({ id: lift.id, name: lift.name, ratioBW, percentile })
   }
+
   return result
+}
+
+// Median/50th percentile bw ratio for curve visualization.
+export function getLiftP50TypicalRatio(
+  liftId: LiftId,
+  gender: Gender,
+  bodyweightKg: number
+): number {
+  const g: 'male' | 'female' = gender === 'prefer_not_to_say' ? 'male' : gender
+
+  if (liftId === 'press') {
+    return KILGORE_OHP_THRESHOLDS[g].bwRatios.p50
+  }
+
+  const weightClass = getIPFWeightClass(bodyweightKg, g)
+  const thresholds = VAN_DEN_HOEK_THRESHOLDS_TYPED[g][weightClass][liftId]
+  return thresholds.p50
 }
 
 // Map accessory names to related lift for weight suggestion (% of 1RM)
@@ -743,6 +930,9 @@ const ACCESSORY_TO_LIFT: Record<string, { lift: LiftId; pct: number }> = {
   'Incline bench': { lift: 'bench', pct: 0.65 },
   'Landmine press': { lift: 'press', pct: 0.5 },
   'Push-ups': { lift: 'bench', pct: 0.5 },
+  'Diamond Push-ups': { lift: 'bench', pct: 0.5 },
+  'Dumbbell Floor Press': { lift: 'bench', pct: 0.5 },
+  'Dumbbell Overhead Triceps Extension': { lift: 'bench', pct: 0.35 },
   'Rack pull': { lift: 'deadlift', pct: 0.9 },
   'Single-leg RDL light': { lift: 'deadlift', pct: 0.35 },
   'Dumbbell bench': { lift: 'bench', pct: 0.35 },
@@ -759,9 +949,19 @@ const ACCESSORY_CUES: Record<string, string> = {
   'Incline Dumbbell Press': 'Control the descent, press up and slightly in.',
   'Close-grip bench': 'Elbows tucked, triceps focus.',
   'Cable Triceps Pushdown': 'Keep elbows pinned, extend fully without swinging.',
+  'Dumbbell Floor Press': 'Elbows stay by your sides; press up in a straight path.',
+  'Dumbbell Overhead Triceps Extension': 'Lock upper arms in place; extend fully without swinging.',
+  'Push-ups': 'Brace your core; lower under control, press through the floor.',
+  'Diamond Push-ups': 'Keep elbows close; lower with control and press up strongly.',
   'Seated DB press': 'Press up, don\'t sway.',
+  'Deadlift Volume Sets': 'Brace hard, pull the slack out, and keep reps submax with crisp speed.',
+  'Block pulls': 'Use a shortened range; keep lats tight and hips controlled.',
+  'Bench Press Volume Sets': 'Keep shoulders pinned; bar path steady; stop 1-2 reps shy of failure.',
+  'Incline bench': 'Plant feet, lower under control, press up without bouncing.',
   'Face pulls': 'External rotation at end.',
   'Lateral raises': 'Lead with elbows.',
+  'Hip thrust': 'Tuck ribs, drive hips to lockout, pause, then lower under control.',
+  'Single-leg RDL light': 'Hinge at hips, keep hips square, reach down and return under control.',
 }
 
 function toAccessoryExercise(s: string, oneRMs: Lift1RM[]): AccessoryExercise {
@@ -798,14 +998,105 @@ function getAccessories(
   flags: RatioFlag[],
   _injury: boolean,
   injuryNotes: string | undefined,
-  oneRMs: Lift1RM[]
+  oneRMs: Lift1RM[],
+  equipment: string[] | undefined,
+  training_frequency: FormState['training_frequency']
 ): AccessoryExercise[] {
   const toAcc = (s: string) => toAccessoryExercise(s, oneRMs)
   const flagged = flags.filter((f) => !f.id.startsWith('typical_'))
   const prioritised = getPrioritisedFlags(flagged)
 
+  const normalizeEquipmentTag = (s: string) => s.trim().toLowerCase()
+  const equipmentSet = new Set((equipment ?? []).map(normalizeEquipmentTag))
+
+  // Exercise base-name -> equipment tags.
+  // Unknown exercises are treated as compatible with all equipment.
+  const ACCESSORY_EQUIPMENT_MAP: Record<string, string[]> = {
+    // Lower body / posterior chain
+    'Pause Squat': ['barbell'],
+    'Bulgarian Split Squat': ['dumbbells', 'bodyweight'],
+    'Box Squat': ['barbell'],
+    'RDL': ['barbell', 'dumbbells'],
+    'Romanian deadlift': ['barbell', 'dumbbells'],
+    'Glute bridge': ['bodyweight', 'barbell'],
+    'Hamstring curl': ['bands', 'cable', 'bodyweight'],
+    'Hip thrust': ['barbell', 'dumbbells'],
+    'Deadlift Volume Sets': ['barbell'],
+    'Block pulls': ['barbell'],
+    'Rack pull': ['barbell'],
+    'Deficit deadlift': ['barbell'],
+    'Single-leg RDL light': ['dumbbells', 'bodyweight'],
+
+    // Upper push
+    'Incline Dumbbell Press': ['dumbbells'],
+    'Close-grip bench': ['barbell', 'dumbbells'],
+    'Cable Triceps Pushdown': ['cable'],
+    'Dumbbell Floor Press': ['dumbbells'],
+    'Dumbbell Overhead Triceps Extension': ['dumbbells'],
+    'Bench Press Volume Sets': ['barbell'],
+    'Incline bench': ['barbell'],
+    'Seated DB press': ['dumbbells'],
+    'Landmine press': ['barbell', 'kettlebell'],
+    'Dumbbell bench': ['dumbbells'],
+    'Push-ups': ['bodyweight'],
+    'Diamond Push-ups': ['bodyweight'],
+
+    // Upper pull / shoulders
+    'Face pulls': ['cable', 'bands'],
+    'Lateral raises': ['dumbbells'],
+  }
+
+  const accessorySupportsSelectedEquipment = (accessoryName: string): boolean => {
+    if (equipmentSet.size === 0) return true
+    const requiredTags = ACCESSORY_EQUIPMENT_MAP[accessoryName]
+    if (!requiredTags || requiredTags.length === 0) return false
+    return requiredTags.some((tag) => equipmentSet.has(tag))
+  }
+
+  const targetCount = training_frequency === '1-2' ? 2 : 3
+  const desiredSets =
+    training_frequency === '1-2' ? 2 : training_frequency === '5+' ? 4 : null
+
+  const FALLBACK_EXERCISE_STRINGS = [
+    // Lower-body
+    'RDL 3x6',
+    'Single-leg RDL light 3x6',
+    'Hip thrust 3x6',
+    'Bulgarian Split Squat 3x8',
+    'Glute bridge 3x8',
+    'Hamstring curl 3x10',
+    // Upper-body / press & arms
+    'Incline Dumbbell Press 3x8',
+    'Dumbbell Floor Press 3x8',
+    'Seated DB press 3x6',
+    'Dumbbell Overhead Triceps Extension 3x10',
+    'Push-ups 3x10',
+    'Diamond Push-ups 3x10',
+    // Shoulders / pulls
+    'Face pulls 3x12',
+    'Lateral raises 3x10',
+  ]
+
+  const adjustSetsReps = (a: AccessoryExercise): AccessoryExercise => {
+    if (desiredSets == null) return a
+    const m = a.setsReps.match(/^(\d+)x(\d+)$/)
+    if (!m) return a
+    const reps = m[2]!
+    return { ...a, setsReps: `${desiredSets}x${reps}` }
+  }
+
   if (prioritised.length === 0) {
-    return [toAcc('RDL 3x6'), toAcc('Glute bridge 3x8'), toAcc('Hamstring curl 3x10')]
+    const out: AccessoryExercise[] = []
+    const seen = new Set<string>()
+    for (const s of FALLBACK_EXERCISE_STRINGS) {
+      const acc = toAcc(s)
+      if (seen.has(acc.name)) continue
+      if (equipmentSet.size > 0 && !accessorySupportsSelectedEquipment(acc.name)) continue
+      out.push(acc)
+      seen.add(acc.name)
+      if (out.length >= targetCount) break
+    }
+    return out.map(adjustSetsReps)
   }
 
   const notes = (injuryNotes ?? '').toLowerCase()
@@ -827,41 +1118,43 @@ function getAccessories(
   // Collect accessories from prioritised flags, aiming to cover distinct imbalances first
   const seen = new Set<string>()
   const result: AccessoryExercise[] = []
-  const targetCount = 3
   const perFlagExercises: { flag: RatioFlag; exercises: string[] }[] = prioritised.map((flag) => ({
     flag,
     exercises: getExercisesForFlag(flag),
   }))
 
-  // First pass: 1 exercise per imbalance (flag) to diversify recommendations
+  // First pass: 1 exercise per imbalance (flag) to diversify recommendations.
+  // If an item doesn't match the user's equipment, we skip it and keep scanning deeper priorities.
   let exerciseIndex = 0
-  while (result.length < targetCount && exerciseIndex < 3) {
-    let addedInThisRound = false
+  const maxExerciseIndex = Math.max(0, ...perFlagExercises.map(({ exercises }) => exercises.length))
+  while (result.length < targetCount && exerciseIndex < maxExerciseIndex) {
     for (const { flag, exercises } of perFlagExercises) {
       const ex = exercises[exerciseIndex]
       if (!ex) continue
       const name = ex.replace(/\s+\d+x\d+$/, '').trim()
       if (seen.has(name)) continue
+      if (equipmentSet.size > 0 && !accessorySupportsSelectedEquipment(name)) continue
+
       const forImbalance = FLAG_IMBALANCE_CALLOUT[flag.id]
       seen.add(name)
       result.push({ ...toAcc(ex), forImbalance })
-      addedInThisRound = true
       if (result.length >= targetCount) break
     }
-    if (!addedInThisRound) break
     exerciseIndex += 1
   }
 
   if (result.length < targetCount) {
-    const defaults = [toAcc('RDL 3x6'), toAcc('Glute bridge 3x8'), toAcc('Hamstring curl 3x10')]
-    for (const d of defaults) {
-      if (!seen.has(d.name) && result.length < targetCount) {
-        result.push(d)
-      }
+    for (const s of FALLBACK_EXERCISE_STRINGS) {
+      if (result.length >= targetCount) break
+      const acc = toAcc(s)
+      if (seen.has(acc.name)) continue
+      if (equipmentSet.size > 0 && !accessorySupportsSelectedEquipment(acc.name)) continue
+      result.push(acc)
+      seen.add(acc.name)
     }
   }
 
-  return result.slice(0, targetCount)
+  return result.slice(0, targetCount).map(adjustSetsReps)
 }
 
 function oneLineDiagnosis(flags: RatioFlag[], confidence: ConfidenceLevel): string {
@@ -911,7 +1204,12 @@ function oneLineDiagnosis(flags: RatioFlag[], confidence: ConfidenceLevel): stri
  */
 export function runDiagnostic(
   lifts: LiftInput[],
-  form: Pick<FormState, 'bodyweight' | 'experience' | 'injury' | 'injury_notes'>
+  form: Pick<
+    FormState,
+    'bodyweight' | 'experience' | 'gender' | 'injury' | 'injury_notes' | 'training_frequency'
+  > & {
+    equipment?: string[]
+  }
 ): DiagnosticResult {
   const oneRMs = compute1RMs(lifts)
   const ratios = computeRatios(oneRMs)
@@ -922,8 +1220,23 @@ export function runDiagnostic(
     experience: form.experience,
   })
   const oneLineDiagnosisText = oneLineDiagnosis(flags, confidence)
-  const accessories = getAccessories(flags, form.injury, form.injury_notes, oneRMs)
-  const liftPercentiles = computeLiftPercentiles(oneRMs, form.bodyweight, form.experience)
+  const accessories = getAccessories(
+    flags,
+    form.injury,
+    form.injury_notes,
+    oneRMs,
+    form.equipment,
+    form.training_frequency
+  )
+  const liftPercentiles = computeLiftPercentiles(oneRMs, form.bodyweight, form.gender)
+
+  const liftPercentilesById = liftPercentiles.reduce<Record<string, number>>((acc, lp) => {
+    acc[lp.id] = lp.percentile
+    return acc
+  }, {})
+
+  const { penalty: balancePenalty, weakestLift } = computeBalancePenalty(liftPercentilesById)
+  const heroScore = computeHeroScore(liftPercentilesById, balancePenalty, weakestLift, balancePenalty)
 
   return {
     oneRMs,
@@ -932,6 +1245,7 @@ export function runDiagnostic(
     oneLineDiagnosis: oneLineDiagnosisText,
     accessories,
     confidence,
+    heroScore,
     liftPercentiles,
   }
 }

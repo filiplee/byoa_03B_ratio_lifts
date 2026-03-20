@@ -8,15 +8,16 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts'
-import type { PrimaryGoal } from '../types'
+import type { PrimaryGoal, Units } from '../types'
 import { getRadarChartData } from '../calculations'
 import type { Lift1RM } from '../types'
+import { formatKg } from '../units'
 
 interface StrengthRadarChartProps {
   oneRMs: Lift1RM[]
   goal: PrimaryGoal
   bodyweight?: number
-  units: string
+  units: Units
 }
 
 export function StrengthRadarChart({
@@ -57,7 +58,7 @@ export function StrengthRadarChart({
                     ) : (
                       <>
                         <tspan x={x} dy={-4}>{payload.value}</tspan>
-                        <tspan x={x} dy={10}>{row ? `${row.oneRM} ${units}` : ''}</tspan>
+                        <tspan x={x} dy={10}>{row ? `${formatKg(row.oneRM, units)} ${units}` : ''}</tspan>
                       </>
                     )}
                   </text>

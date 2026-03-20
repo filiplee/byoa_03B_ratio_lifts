@@ -180,8 +180,10 @@ describe('runDiagnostic (sample input)', () => {
   it('produces expected 1RMs and ratios', () => {
     const result = runDiagnostic(sampleLifts, {
       bodyweight: 78,
+      gender: 'prefer_not_to_say',
       experience: 'Intermediate',
       injury: false,
+      training_frequency: '3-4',
     })
     expect(result.oneRMs).toHaveLength(4)
     expect(result.oneRMs.find((r) => r.id === 'squat')?.oneRM).toBe(132)
@@ -194,8 +196,10 @@ describe('runDiagnostic (sample input)', () => {
   it('includes deadlift_dominant flag and posterior-chain accessories', () => {
     const result = runDiagnostic(sampleLifts, {
       bodyweight: 78,
+      gender: 'prefer_not_to_say',
       experience: 'Intermediate',
       injury: false,
+      training_frequency: '3-4',
     })
     expect(result.flags.some((f) => f.id === 'deadlift_dominant')).toBe(true)
     expect(result.oneLineDiagnosis).toContain('Deadlift dominant')
@@ -214,8 +218,10 @@ describe('runDiagnostic (sample input)', () => {
     ]
     const result = runDiagnostic(pdfLifts, {
       bodyweight: 73,
+      gender: 'prefer_not_to_say',
       experience: 'Intermediate',
       injury: false,
+      training_frequency: '3-4',
     })
     expect(result.flags.some((f) => f.id === 'press_strong')).toBe(true)
     expect(result.flags.some((f) => f.id === 'deadlift_lagging_bench')).toBe(true)
@@ -224,5 +230,54 @@ describe('runDiagnostic (sample input)', () => {
     const accessoryNames = result.accessories.map((a) => a.name)
     expect(accessoryNames).toContain('RDL')
     expect(accessoryNames.some((n) => ['RDL', 'Glute bridge', 'Hamstring curl', 'Squat strength', 'Lower-body volume', 'Romanian deadlift'].includes(n))).toBe(true)
+  })
+})
+
+describe('hero score (van den Hoek + Kilgore)', () => {
+  it('80kg male example lands in Getting Started with small penalty', () => {
+    const lifts: LiftInput[] = [
+      { id: 'squat', name: 'Squat', method: 'one_rm', one_rm: 120 },
+      { id: 'bench', name: 'Bench Press', method: 'one_rm', one_rm: 80 },
+      { id: 'deadlift', name: 'Deadlift', method: 'one_rm', one_rm: 150 },
+      { id: 'press', name: 'Overhead Press', method: 'one_rm', one_rm: 55 },
+    ]
+
+    const result = runDiagnostic(lifts, {
+      bodyweight: 80,
+      gender: 'male',
+      experience: 'Intermediate',
+      injury: false,
+      training_frequency: '3-4',
+    })
+
+    expect(result.heroScore.band).toBe('Getting Started')
+    expect(result.heroScore.displayedScore).toBeLessThanOrEqual(20)
+    expect(result.heroScore.balancePenalty).toBeGreaterThanOrEqual(0)
+    expect(result.heroScore.balancePenalty).toBeLessThanOrEqual(10)
+  })
+
+  it('Perfectly balanced at p50 has zero penalty', () => {
+    const bodyweight = 80
+    const lifts: LiftInput[] = [
+      // male, bw=80kg -> 83kg class
+      { id: 'squat', name: 'Squat', method: 'one_rm', one_rm: 2.29 * bodyweight },
+      { id: 'bench', name: 'Bench Press', method: 'one_rm', one_rm: 1.56 * bodyweight },
+      { id: 'deadlift', name: 'Deadlift', method: 'one_rm', one_rm: 2.68 * bodyweight },
+      // Kilgore male p50
+      { id: 'press', name: 'Overhead Press', method: 'one_rm', one_rm: 0.65 * bodyweight },
+    ]
+
+    const result = runDiagnostic(lifts, {
+      bodyweight,
+      gender: 'male',
+      experience: 'Intermediate',
+      injury: false,
+      training_frequency: '3-4',
+    })
+
+    expect(result.heroScore.balancePenalty).toBe(0)
+    expect(result.heroScore.weakestLift).toBeNull()
+    expect(result.heroScore.displayedScore).toBe(50)
+    expect(result.heroScore.band).toBe('Intermediate')
   })
 })

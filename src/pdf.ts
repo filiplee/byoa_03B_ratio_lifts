@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf'
 import type { FormState, DiagnosticResult } from './types'
 import { IDEAL_RATIOS, getIdealRangeForGoal, getRadarChartData, getHeadlineDiagnosis } from './calculations'
+import { formatKg } from './units'
 
 const DISCLAIMER =
   'Informational only — not medical advice. Consult a professional for injuries.'
@@ -220,6 +221,90 @@ export function generateReportPDF(
   )
   y += LINE_H + 3
 
+  // ─── Hero score panel ──────────────────────────────────────────────────
+  const heroX = MARGIN
+  const heroW = CONTENT_W
+  const heroY = y
+  const heroH = 75
+
+  const ordinalSuffix = (n: number) => {
+    const abs = Math.abs(Math.round(n))
+    const mod100 = abs % 100
+    if (mod100 >= 11 && mod100 <= 13) return 'th'
+    const mod10 = abs % 10
+    if (mod10 === 1) return 'st'
+    if (mod10 === 2) return 'nd'
+    if (mod10 === 3) return 'rd'
+    return 'th'
+  }
+
+  const hero = result.heroScore
+  const heroTitle = `${hero.displayedScore}${ordinalSuffix(hero.displayedScore)} percentile`
+  const weakLiftWord =
+    hero.weakestLift === 'squat'
+      ? 'squat'
+      : hero.weakestLift === 'bench'
+        ? 'bench'
+        : hero.weakestLift === 'deadlift'
+          ? 'deadlift'
+          : hero.weakestLift === 'press'
+            ? 'OHP'
+            : 'your weak link'
+
+  const heroFillY = heroY
+  doc.setFillColor(71, 85, 105) // slate-600
+  doc.roundedRect(heroX, heroFillY, heroW, heroH, RADIUS, RADIUS, 'F')
+  doc.setDrawColor(PALETTE.accent.r, PALETTE.accent.g, PALETTE.accent.b)
+  doc.setLineWidth(0.25)
+  doc.roundedRect(heroX, heroFillY, heroW, heroH, RADIUS, RADIUS, 'S')
+
+  const heroTextW = heroW - 2 * PAD
+  let ty = heroY + PAD + 1
+  doc.setFont(pdfFontName, 'bold')
+  doc.setFontSize(FONT.small + 1)
+  setInk(doc)
+  doc.text(heroTitle, heroX + PAD, ty, { baseline: 'top' })
+  ty += LINE_HEIGHT_SMALL + 1
+
+  doc.setFont(pdfFontName, 'bold')
+  doc.setFontSize(FONT.small)
+  setAccent(doc)
+  doc.text(hero.band, heroX + PAD, ty, { baseline: 'top' })
+  ty += LINE_HEIGHT_SMALL + 1
+
+  doc.setFont(pdfFontName, 'normal')
+  doc.setFontSize(FONT.tiny)
+  setMuted(doc)
+
+  const heroLines: string[] = []
+  if (hero.balancePenalty > 0 && hero.weakestLift) {
+    heroLines.push(`Weak link: your ${weakLiftWord} (−${hero.penaltyPoints} points).`)
+    heroLines.push(`Fix it and you climb toward ${hero.rawPercentile}${ordinalSuffix(hero.rawPercentile)}.`)
+  } else if (result.oneLineDiagnosis) {
+    heroLines.push(result.oneLineDiagnosis)
+  }
+
+  // Per-lift percentiles (BW ratio + percentile)
+  const lps = result.liftPercentiles ?? []
+  for (const lp of lps) {
+    const liftLabel = lp.id === 'press' ? 'OHP' : lp.name
+    heroLines.push(`${liftLabel}: ${lp.ratioBW.toFixed(2)}× BW · ${lp.percentile}${ordinalSuffix(lp.percentile)} percentile`)
+  }
+
+  // Context line about reference population.
+  heroLines.push(
+    '*Compared against 800,000+ drug-tested competitive powerlifters. Most gym lifters fall in Getting Started or Developing — that is expected and normal.*'
+  )
+
+  for (const line of heroLines) {
+    const wrapped = doc.splitTextToSize(line, heroTextW)
+    doc.text(wrapped, heroX + PAD, ty, { baseline: 'top' })
+    ty += wrapped.length * LINE_HEIGHT_TINY + 0.8
+    if (ty > heroY + heroH - PAD - 2) break
+  }
+
+  y = heroY + heroH + 4
+
   // ─── Header insight box (Key takeaway) — matches Action panel typography ─
   const insightX = MARGIN
   const insightW = CONTENT_W
@@ -227,7 +312,7 @@ export function generateReportPDF(
   const diagWrapW = insightW - 2 * PAD
   doc.setFont(pdfFontName, 'normal')
   doc.setFontSize(FONT.small)
-  const headline = getHeadlineDiagnosis(result.oneRMs, result.flags)
+  const headline = getHeadlineDiagnosis(result.oneRMs, result.flags, form.units)
   const diag = doc.splitTextToSize(headline, diagWrapW)
   const titleH = LINE_HEIGHT_SMALL   // same scale as Action label
   const bodyH = Math.max(1, diag.length) * LINE_HEIGHT_SMALL
@@ -323,7 +408,7 @@ export function generateReportPDF(
       const label =
         row.subject === 'BW ratio'
           ? `BW ${row.oneRM.toFixed(2)}`
-          : `${row.subject} ${Math.round(row.oneRM)}${form.units}`
+          : `${row.subject} ${formatKg(row.oneRM, form.units)} ${form.units}`
       doc.text(label, lx, ly, { align: 'center' })
     }
 
@@ -350,7 +435,7 @@ export function generateReportPDF(
     `Experience: ${form.experience}`,
     `Frequency: ${form.training_frequency}/wk`,
     `Goal: ${form.primary_goal}`,
-    form.bodyweight != null ? `BW: ${form.bodyweight} ${form.units}` : null,
+    form.bodyweight != null ? `BW: ${formatKg(form.bodyweight, form.units)} ${form.units}` : null,
   ].filter(Boolean) as string[]
   doc.text(metaParts.join('  ·  '), MARGIN, y)
   y += LINE_H + 2
@@ -405,7 +490,7 @@ export function generateReportPDF(
     doc.setFont(pdfFontName, 'bold')
     doc.setFontSize(FONT.section + 2)
     setAccent(doc)
-    const valueStr = String(lift.oneRM)
+    const valueStr = formatKg(lift.oneRM, form.units)
     doc.text(valueStr, x + cellPad, contentTop + labelH + 1, baseTop)
 
     doc.setFont(pdfFontName, 'normal')
@@ -524,7 +609,9 @@ export function generateReportPDF(
 
   // ─── Accessory cards (top 3) ─────────────────────────────────────────────
   y = ensureSpace(doc, y, 35)
-  sectionHeader(doc, 'Accessory focus (top 3)', y)
+  const topAccessories = (result.accessories || []).slice(0, 3)
+  const topAccessoryCount = topAccessories.length
+  sectionHeader(doc, `Accessory focus (top ${topAccessoryCount})`, y)
   y += LINE_H + 2
 
   const cardH = 21
@@ -534,7 +621,7 @@ export function generateReportPDF(
   const cardTextW = cardW - 2 * cardPad
   const cardOpts = { baseline: 'top' as const }
 
-  for (const a of (result.accessories || []).slice(0, 3)) {
+  for (const a of topAccessories) {
     y = ensureSpace(doc, y, cardH + cardGap + 2)
     doc.setFillColor(51, 65, 85) // slate-700
     doc.roundedRect(MARGIN, y, cardW, cardH, RADIUS, RADIUS, 'F')
@@ -571,7 +658,7 @@ export function generateReportPDF(
     doc.setFont(pdfFontName, 'normal')
     doc.setFontSize(FONT.small)
     setMuted(doc)
-    const weightStr = a.suggestedWeight != null ? ` · ${a.suggestedWeight} ${form.units}` : ''
+    const weightStr = a.suggestedWeight != null ? ` · ${formatKg(a.suggestedWeight, form.units)} ${form.units}` : ''
     const rx = `${a.setsReps || ''}${weightStr}`.trim() || '—'
     doc.text(rx, MARGIN + cardPad, rowY, cardOpts)
     rowY += LINE_HEIGHT_SMALL + 1

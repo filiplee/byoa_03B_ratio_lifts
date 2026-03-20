@@ -3,6 +3,7 @@ export type Experience = 'Beginner' | 'Intermediate' | 'Advanced'
 export type TrainingFrequency = '1-2' | '3-4' | '5+'
 export type PrimaryGoal = 'Strength' | 'Hypertrophy' | 'Power' | 'Rehab'
 export type LiftInputMethod = 'weight_reps' | 'one_rm'
+export type Gender = 'male' | 'female' | 'prefer_not_to_say'
 
 export const LIFT_IDS = ['squat', 'bench', 'deadlift', 'press'] as const
 export type LiftId = (typeof LIFT_IDS)[number]
@@ -26,6 +27,7 @@ export interface LiftInput {
 export interface FormState {
   units: Units
   bodyweight?: number
+  gender: Gender
   experience: Experience
   training_frequency: TrainingFrequency
   lifts: LiftInput[]
@@ -81,6 +83,14 @@ export interface RatioFlag {
 
 export type ConfidenceLevel = 'High' | 'Medium' | 'Low'
 
+export type StrengthBand =
+  | 'Getting Started'
+  | 'Developing'
+  | 'Intermediate'
+  | 'Solid'
+  | 'Advanced'
+  | 'Elite'
+
 export interface AccessoryExercise {
   name: string
   setsReps: string
@@ -105,6 +115,14 @@ export interface DiagnosticResult {
   oneLineDiagnosis: string
   accessories: AccessoryExercise[]
   confidence: ConfidenceLevel
+  heroScore: {
+    displayedScore: number // 1–100, raw minus penalty
+    rawPercentile: number // before penalty
+    balancePenalty: number // 0–20
+    weakestLift: string | null // name of lift furthest below mean
+    penaltyPoints: number // points that lift is costing
+    band: StrengthBand
+  }
   /** Lift percentiles (ratio × bodyweight vs population). Requires bodyweight. */
   liftPercentiles?: LiftPercentile[]
 }
@@ -122,6 +140,7 @@ export interface SavedAthleteScenario {
 export interface DiagnosticInputs {
   lifts: LiftInput[]
   bodyweight?: number
+  gender: Gender
   experience: Experience
   units: Units
   injury: boolean

@@ -15,6 +15,7 @@ export function defaultLifts(): LiftInput[] {
 export const defaultFormState: FormState = {
   units: 'kg',
   bodyweight: undefined,
+  gender: 'prefer_not_to_say',
   experience: 'Intermediate',
   training_frequency: '3-4',
   lifts: defaultLifts(),
