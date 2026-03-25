@@ -23,7 +23,7 @@ export function RetestBanner({ state }: RetestBannerProps) {
               Your weak link was <span className="text-[#e8e5df]">{state.previousWeakLift}</span>.
             </p>
             <p className="mt-2 text-sm text-[#a8a8a8]">
-              Let&apos;s see where you are now. Enter your lifts below.
+              Let's see where you are now. Enter your lifts below.
             </p>
           </div>
 

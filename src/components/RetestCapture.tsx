@@ -77,15 +77,17 @@ export function RetestCapture({
         <div className="rounded-none border border-[#2a2a2a] bg-[#111111] p-4">
           {emailSubmitted ? (
             <p className="text-sm font-medium text-[#e8c547]">
-              Done. We&apos;ll see you in 8 weeks. In the meantime, your weak link is {weakLift} — you know what to
+              Done. We&apos;ll see you in 6 weeks. In the meantime, your weak link is {weakLift} — you know what to
               do.
             </p>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-3">
               <div>
                 <p className="text-sm font-medium text-[#f5f2ec]">Want to know if you improved?</p>
-                <p className="mt-2 text-sm text-[#a8a8a8]">Come back in 8 weeks and retest.</p>
-                <p className="text-sm text-[#a8a8a8]">We&apos;ll remind you — and show you exactly how much you moved.</p>
+                <p className="mt-2 text-sm text-[#a8a8a8]">Come back in 6 weeks and retest.</p>
+                <p className="text-sm text-[#a8a8a8]">
+                  We&apos;ll remind you — and show you exactly how much you moved.
+                </p>
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row">
@@ -106,7 +108,7 @@ export function RetestCapture({
                 </button>
               </div>
 
-              <p className="text-[11px] text-[#555]">No spam. One email at 8 weeks.</p>
+              <p className="text-[11px] text-[#555]">No spam. One email at 6 weeks.</p>
 
               <div className="pt-1">
                 <button

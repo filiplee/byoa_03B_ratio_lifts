@@ -28,18 +28,20 @@ export interface FormState {
   units: Units
   bodyweight?: number
   gender: Gender
-  experience: Experience
+  /** Required to generate a report; null until the user selects a strength level. */
+  experience: Experience | null
   training_frequency: TrainingFrequency
   lifts: LiftInput[]
   primary_goal: PrimaryGoal
   injury: boolean
   injury_notes?: string
   equipment: string[]
-  /** Coach workflow toggles/features (local only). */
-  coach_mode?: boolean
-  athlete_name?: string
-  coach_name?: string
 }
+
+/**
+ * Coach workflow (e.g. athlete/coach names on PDFs, coach notes, roster / saved scenarios) is planned for a later phase.
+ * Product copy: see the “Coaches” callout in `ResultCard`.
+ */
 
 export type OneRMMethod = 'epley' | 'user_provided'
 
@@ -83,12 +85,12 @@ export interface RatioFlag {
 
 export type ConfidenceLevel = 'High' | 'Medium' | 'Low'
 
+/** Population percentile band (same labels at every experience tier; tier shifts thresholds). */
 export type StrengthBand =
   | 'Getting Started'
   | 'Developing'
-  | 'Intermediate'
   | 'Solid'
-  | 'Advanced'
+  | 'Strong'
   | 'Elite'
 
 export interface AccessoryExercise {
@@ -106,6 +108,10 @@ export interface LiftPercentile {
   name: string
   ratioBW: number
   percentile: number
+  band: StrengthBand
+  /** Where this lift would rank against the next stricter cohort (Beginner → Intermediate, Intermediate → Advanced). */
+  projectedNextTierPercentile?: number
+  projectedNextTierStandardsName?: 'Intermediate' | 'Advanced'
 }
 
 export interface DiagnosticResult {
@@ -125,9 +131,18 @@ export interface DiagnosticResult {
   }
   /** Lift percentiles (ratio × bodyweight vs population). Requires bodyweight. */
   liftPercentiles?: LiftPercentile[]
+  /**
+   * Average projected percentile vs the next experience standard (cohort comparison).
+   * Shown when experience is Beginner or Intermediate.
+   */
+  secondaryPercentile?: {
+    percentile: number
+    /** e.g. "INTERMEDIATE STANDARDS" */
+    standardsLabel: string
+  }
 }
 
-/** Coach mode: saved athlete scenario (localStorage). */
+/** Saved athlete scenarios for coaches — implementation deferred to the coach phase. */
 export interface SavedAthleteScenario {
   id: string
   athleteName: string
@@ -141,7 +156,7 @@ export interface DiagnosticInputs {
   lifts: LiftInput[]
   bodyweight?: number
   gender: Gender
-  experience: Experience
+  experience: Experience | null
   units: Units
   injury: boolean
   injury_notes?: string

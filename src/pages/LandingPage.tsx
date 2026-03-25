@@ -70,12 +70,7 @@ export function LandingPage() {
               {
                 '@type': 'HowToStep',
                 name: 'Follow the prescription for next sessions',
-                text: 'Use the recommended accessory exercises (sets, reps, and suggested working weights).',
-              },
-              {
-                '@type': 'HowToStep',
-                name: 'Retest after 8 weeks',
-                text: 'Re-enter your lifts to track how your ratios shifted and adjust your plan.',
+                text: 'Use the recommended accessory exercises (sets, reps, and suggested working weights). After about 6 weeks, re-enter your lifts to see how your ratios shifted and adjust your plan.',
               },
             ],
           },
@@ -158,7 +153,7 @@ export function LandingPage() {
             className="text-[clamp(4rem,8vw,7.5rem)] leading-[0.92] tracking-[0.02em] text-[#f5f2ec]"
             style={{ animation: 'fadeUp 0.7s 0.2s ease both', fontFamily: '"Bebas Neue", sans-serif' }}
           >
-            Train what&apos;s
+            Train what's
             <br />
             <span className="text-[#e8c547]" style={{ fontFamily: '"DM Serif Display", serif', fontStyle: 'italic' }}>
               actually
@@ -172,9 +167,10 @@ export function LandingPage() {
             className="mt-8 max-w-[480px] text-[1.1rem] leading-[1.7] text-[#a8a8a8]"
             style={{ animation: 'fadeUp 0.7s 0.35s ease both' }}
           >
-            Most lifters train hard — but <strong className="font-medium text-[#f5f2ec]">train wrong</strong>. Ratio
-            Lifts analyses your strength proportions across key lifts and prescribes the exact accessory work to close
-            your weakest gaps.
+            Most lifters train hard — but{' '}
+            <strong className="font-medium text-[#f5f2ec]">don&apos;t know their bottleneck</strong>. Ratio Lifts analyses
+            your strength proportions across key lifts and prescribes the exact accessory work to close your weakest
+            gaps.
           </p>
           <div className="mt-8 flex max-w-[460px]" style={{ animation: 'fadeUp 0.7s 0.5s ease both' }}>
             <Link
@@ -265,21 +261,21 @@ export function LandingPage() {
               className="text-[clamp(2.8rem,5vw,5rem)] leading-[0.95] tracking-[0.02em]"
               style={{ fontFamily: '"Bebas Neue", sans-serif' }}
             >
-              You&apos;re not
+              You're not
               <br />
               training{' '}
               <span style={{ fontFamily: '"DM Serif Display", serif', fontStyle: 'italic' }} className="text-[#e8c547]">
                 wrong.
               </span>
               <br />
-              You&apos;re training
+              You're training
               <br />
               <span style={{ fontFamily: '"DM Serif Display", serif', fontStyle: 'italic' }} className="text-[#e8c547]">
                 blind.
               </span>
             </h2>
             <p className="mt-6 max-w-[560px] text-[1rem] leading-[1.75] text-[#a8a8a8]">
-              More sets, more weight, more programmes — but you keep plateauing. The issue isn&apos;t effort. It&apos;s
+              More sets, more weight, more programmes — but you keep plateauing. The issue isn't effort. It's
               that no one has ever shown you{' '}
               <span style={{ fontFamily: '"DM Serif Display", serif', fontStyle: 'italic' }}>
                 which specific muscle groups are disproportionately weak
@@ -316,9 +312,9 @@ export function LandingPage() {
                     className="text-[3.2rem] leading-none text-[#f5f2ec]"
                     style={{ fontFamily: '"Bebas Neue", sans-serif' }}
                   >
-                    {stat.num.replace(/(\\d+)(.*)/, '$1')}
+                    {stat.num.replace(/(\d+)(.*)/, '$1')}
                     <span className="text-[#e8c547]">
-                      {stat.num.replace(/(\\d+)(.*)/, '$2')}
+                      {stat.num.replace(/(\d+)(.*)/, '$2')}
                     </span>
                   </div>
                   <div className="mt-2 text-[0.78rem] leading-[1.5] text-[#a8a8a8]">
@@ -424,13 +420,13 @@ export function LandingPage() {
             >
               Strength
               <br />
-              isn&apos;t just
+              isn't just
               <br />
               <span style={{ fontFamily: '"DM Serif Display", serif', fontStyle: 'italic' }} className="text-[#e8c547]">
                 numbers.
               </span>
               <br />
-              It&apos;s ratios.
+              It's ratios.
             </h2>
             <p className="mt-6 max-w-[560px] text-[1rem] leading-[1.75] text-[#a8a8a8]">
               Elite coaches have known for decades that the{' '}
@@ -588,7 +584,7 @@ export function LandingPage() {
           >
             <div className="mb-4 flex items-center gap-[0.6rem] text-[0.68rem] font-medium uppercase tracking-[0.22em] text-[#e8c547]">
               <span className="inline-block h-px w-5 bg-[#e8c547]" />
-              Who It&apos;s For
+              Who It's For
             </div>
             <h2
               className="text-[clamp(2.8rem,5vw,5rem)] leading-[0.95] tracking-[0.02em]"
@@ -758,7 +754,7 @@ export function LandingPage() {
 
       {/* FOOTER */}
       <footer className="flex items-center justify-between border-t border-[#2a2a2a] bg-[#0a0a0a] px-10 py-8 text-[0.75rem] tracking-[0.06em] text-[#555]">
-        <div>© 2025 Ratio Lifts. All rights reserved.</div>
+        <div>© {new Date().getFullYear()} Ratio Lifts. All rights reserved.</div>
         <div className="flex gap-8">
           <Link to="/privacy" className="text-[#555] no-underline hover:text-[#e8c547]">
             Privacy

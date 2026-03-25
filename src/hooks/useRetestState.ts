@@ -7,7 +7,7 @@ export const RETEST_UPDATE_EVENT = 'mls_retest:updated'
 export interface RetestRecord {
   email?: string
   capturedAt?: number // Unix timestamp ms
-  targetRetestAt?: number // capturedAt + 56 days
+  targetRetestAt?: number // capturedAt + 42 days (6 weeks)
 
   // Current-capture values (stored for the initial captured state).
   heroScore?: number
@@ -49,8 +49,9 @@ export type RetestState =
     }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
-const RETEST_DAYS_READY = 50 // Spec: ready after 50+ days.
-const RETEST_DAYS_TARGET = 56 // Spec: target is 8 weeks (56 days).
+/** Banner “ready” state: slightly before the 6-week target. */
+export const RETEST_DAYS_READY = 36
+const RETEST_DAYS_TARGET = 42 // 6 weeks
 
 function safeParseJson(s: string | null): unknown {
   if (!s) return null
@@ -98,9 +99,8 @@ export function emitRetestUpdate(): void {
 export function getBandFromHeroScore(score: number): StrengthBand {
   if (score <= 20) return 'Getting Started'
   if (score <= 40) return 'Developing'
-  if (score <= 60) return 'Intermediate'
-  if (score <= 75) return 'Solid'
-  if (score <= 90) return 'Advanced'
+  if (score <= 60) return 'Solid'
+  if (score <= 80) return 'Strong'
   return 'Elite'
 }
 

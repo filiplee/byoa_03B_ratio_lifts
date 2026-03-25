@@ -10,29 +10,25 @@ import {
   computeTargetRetestAt,
   getBandFromHeroScore,
   readRetestRecord,
+  RETEST_DAYS_READY,
   RETEST_UPDATE_EVENT,
   writeRetestRecord,
 } from '../hooks/useRetestState'
 import {
   FLAG_IMBALANCE_CALLOUT,
+  IDEAL_RATIOS,
   getIdealRangeForGoal,
   getHeadlineDiagnosis,
+  getPercentileBand,
   getPlainEnglishForRatio,
-  computeBalanceScore,
-  getLiftP50TypicalRatio,
 } from '../calculations'
-import { PercentileCurve } from './PercentileCurve'
-import { StrengthRadarChart } from './StrengthRadarChart'
 import { ScoreComparison } from './ScoreComparison'
 
 interface ResultCardProps {
   form: FormState
   result: DiagnosticResult
-  coachMode?: boolean
-  athleteName?: string
-  coachNotes?: string
-  coachName?: string
   onSaveScenario?: () => Promise<void> | void
+  onRetest?: () => void
 }
 
 type FlagCategory = 'balanced' | 'lagging' | 'overdeveloped'
@@ -58,6 +54,26 @@ const OVERDEVELOPED_FLAG_IDS: RatioFlagId[] = [
 ]
 
 const TOP_RATIO_IDS = ['bench_to_squat', 'squat_to_deadlift', 'press_to_bench', 'squat_to_bench'] as const
+
+function ordinalSuffix(n: number): string {
+  const abs = Math.abs(Math.round(n))
+  const mod100 = abs % 100
+  if (mod100 >= 11 && mod100 <= 13) return 'th'
+  const mod10 = abs % 10
+  if (mod10 === 1) return 'st'
+  if (mod10 === 2) return 'nd'
+  if (mod10 === 3) return 'rd'
+  return 'th'
+}
+
+/** Short label for hero copy, e.g. "Bench Press" → "bench" */
+function weakLiftHeroPhrase(fullName: string): string {
+  if (fullName === 'Bench Press') return 'bench'
+  if (fullName === 'Squat') return 'squat'
+  if (fullName === 'Deadlift') return 'deadlift'
+  if (fullName === 'Overhead Press') return 'overhead press'
+  return fullName.toLowerCase()
+}
 
 function getFlagCategory(flagId: RatioFlagId): FlagCategory {
   if (flagId.startsWith('typical_')) return 'balanced'
@@ -100,10 +116,9 @@ const ACCESSORY_PATTERN_MAP: Record<
   },
 }
 
-export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCardProps) {
+export function ResultCard({ form, result, onSaveScenario, onRetest }: ResultCardProps) {
   const [assessmentDate] = useState(() => new Date())
   const [showAllRatios, setShowAllRatios] = useState(false)
-  const [coachNotesLocal, setCoachNotesLocal] = useState('')
   const [retestRecord, setRetestRecord] = useState(() => readRetestRecord())
   const [prescriptionEmail, setPrescriptionEmail] = useState<string | null>(() => {
     const rec = readRetestRecord()
@@ -157,7 +172,7 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
         {
           lifts: form.lifts,
           bodyweight: form.bodyweight,
-          experience: form.experience,
+          experience: form.experience ?? 'Intermediate',
           gender: form.gender,
           units: form.units,
           injury: form.injury,
@@ -166,12 +181,7 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
         result
       )
       trackEvent('pdf_export')
-      generateReportPDF(form, result, {
-        coachMode: !!coachMode,
-        athleteName: form.athlete_name,
-        coachName: form.coach_name,
-        coachNotes: coachNotesLocal || undefined,
-      })
+      generateReportPDF(form, result)
       await new Promise((r) => window.setTimeout(r, 350))
       showToast('PDF downloaded.')
     } catch {
@@ -185,6 +195,7 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
   const hasUserProvided = result.oneRMs.some((r) => r.method === 'user_provided')
   const liftPercentiles = result.liftPercentiles ?? []
   const top3 = result.accessories.slice(0, 3)
+  const hasAccessoryPrescription = top3.length > 0
   const cueFallback = 'Smooth reps with controlled tempo.'
   const commonForImbalance =
     top3.length > 0 &&
@@ -192,28 +203,33 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
     top3.every((a) => a.forImbalance === top3[0]?.forImbalance)
       ? (top3[0]?.forImbalance as string)
       : null
-  const recommendationHeader = top3.length === 2 ? 'Top 2 recommendations' : 'Top 3 recommendations'
+  const recommendationHeader =
+    top3.length === 0
+      ? 'Accessory prescription'
+      : top3.length === 1
+        ? 'Fix your weak link: 1 accessory'
+        : top3.length === 2
+          ? 'Fix your weak link: 2 accessories'
+          : 'Fix your weak link: 3 accessories'
   const recommendationFooterText =
     form.training_frequency === '1-2'
-      ? 'Add these to the end of your existing sessions. Come back in 4-8 weeks and retest - most people see meaningful ratio shifts in that window.'
+      ? 'Add these to the end of your existing sessions. Come back in about 6 weeks and retest — most people see meaningful ratio shifts in that window.'
       : form.training_frequency === '3-4'
-        ? 'Add these to the end of your next 3 sessions. Come back in 4-8 weeks and retest - most people see meaningful ratio shifts in that window.'
-        : 'Schedule one dedicated corrective session, then come back in 4-8 weeks and retest - most people see meaningful ratio shifts in that window.'
+        ? 'Add these to the end of your next 3 sessions. Come back in about 6 weeks and retest — most people see meaningful ratio shifts in that window.'
+        : 'Schedule one dedicated corrective session, then come back in about 6 weeks and retest — most people see meaningful ratio shifts in that window.'
 
   const heroScoreValue = result.heroScore.displayedScore
-  const heroBand = result.heroScore.band
-
-  const heroWeakLiftId = result.heroScore.weakestLift
+  const heroWeakestLift = result.heroScore.weakestLift
   const penaltyPoints = result.heroScore.penaltyPoints
   const rawPercentile = result.heroScore.rawPercentile
+  const cohortBand = getPercentileBand(rawPercentile)
+  const experienceLabel = form.experience != null ? `${form.experience.toUpperCase()} STANDARDS` : 'YOUR STANDARDS'
+  const bandPhaseWord = cohortBand.toLowerCase()
 
-  const RETEST_WEEKS = 8
+  const RETEST_WEEKS = 6
   const reminderDate = new Date(assessmentDate.getTime() + RETEST_WEEKS * 7 * 24 * 60 * 60 * 1000)
   const reminderISO = reminderDate.toISOString().slice(0, 10)
   const reminderText = `Ratio Lifts retest: ${reminderISO}`
-  const balanceScore = computeBalanceScore(result.ratios, result.flags, form.primary_goal)
-  const balanceGrade =
-    balanceScore >= 90 ? 'A' : balanceScore >= 80 ? 'B' : balanceScore >= 70 ? 'C' : balanceScore >= 60 ? 'D' : 'E'
 
   const hasHiddenRatios = result.ratios.some(
     (r) => !TOP_RATIO_IDS.includes(r.id as (typeof TOP_RATIO_IDS)[number]),
@@ -229,7 +245,7 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
     typeof retestRecord.previousScore === 'number' &&
     typeof retestRecord.previousWeakLift === 'string' &&
     daysSinceCaptured != null &&
-    daysSinceCaptured >= 50
+    daysSinceCaptured >= RETEST_DAYS_READY
 
   const previousScore =
     retestRecord != null && typeof retestRecord.previousScore === 'number' ? retestRecord.previousScore : null
@@ -290,11 +306,11 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
         targetRetestAt,
         heroScore: heroScoreValue,
         weakLift: currentWeakLift,
-        band: heroBand,
+        band: cohortBand,
 
         previousScore: heroScoreValue,
         previousRawPercentile: heroScoreValue,
-        previousBand: heroBand,
+        previousBand: cohortBand,
         previousWeakLift: currentWeakLift,
         previousLiftPercentiles: previousLiftPercentiles,
       })
@@ -330,25 +346,28 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
     return diag.split(' Bringing it in line')[0] // keep it one line / avoid impact add-ons
   })()
 
-  const actualExperience: FormState['experience'] =
-    rawPercentile <= 40 ? 'Beginner' : rawPercentile <= 70 ? 'Intermediate' : 'Advanced'
-  const experienceMismatchMessage = (() => {
-    if (form.experience === 'Beginner' && (actualExperience === 'Intermediate' || actualExperience === 'Advanced')) {
-      const level = actualExperience === 'Advanced' ? 'advanced' : 'intermediate'
-      return `Your numbers suggest you're more experienced than you think. You're lifting at an ${level} level for your body weight — own it.`
-    }
-
-    const earlyIntermediate = actualExperience === 'Intermediate' && rawPercentile <= 55
-    if (form.experience === 'Advanced' && (actualExperience === 'Beginner' || earlyIntermediate)) {
-      return `Honest check: your current numbers are at a beginner level for your body weight. The good news? Beginners make the fastest gains. Your ratios show exactly where to focus — follow the prescription and you'll be surprised how quickly you level up.`
-    }
-
-    return null
-  })()
   const currentWeakLift =
-    penaltyPoints > 0 && heroWeakLiftId
-      ? LIFT_NAMES[heroWeakLiftId as keyof typeof LIFT_NAMES]
+    penaltyPoints > 0 && heroWeakestLift
+      ? heroWeakestLift
       : getWeakLiftFromFlagId(primaryFlag?.id) ?? weakLinkLabel
+
+  const weakLinkRatioRow = primaryFlag
+    ? result.ratios.find((r) => r.label === primaryFlag.label)
+    : undefined
+  const weakIdealMid =
+    weakLinkRatioRow != null
+      ? (() => {
+          const g = getIdealRangeForGoal(weakLinkRatioRow.id, form.primary_goal)
+          if (g) return (g.min + g.max) / 2
+          return IDEAL_RATIOS[weakLinkRatioRow.id]?.ideal ?? weakLinkRatioRow.value
+        })()
+      : null
+  const weakLinkMaxScale =
+    weakLinkRatioRow != null && weakIdealMid != null
+      ? Math.max(weakLinkRatioRow.value, weakIdealMid) * 1.15
+      : 1
+  const canShowWeakLinkBars = weakLinkRatioRow != null && weakIdealMid != null && result.oneRMs.length >= 2
+  const climbTargetPct = rawPercentile
 
   return (
     <div id="results-top" className="rounded-none border border-[#2a2a2a] bg-[#1c1c1c] p-6">
@@ -361,71 +380,156 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
           {toast}
         </div>
       )}
-      {/* Radar chart FIRST */}
-      <div className="mb-8">
-        <StrengthRadarChart
-          oneRMs={result.oneRMs}
-          goal={form.primary_goal}
-          bodyweight={form.bodyweight}
-          units={form.units}
-        />
 
-        {/* Distribution curves */}
-        <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4 min-w-0">
+      {/* Section 1: Hero percentile (cohort-adjusted) */}
+      <section className="mb-8">
+        <div className="rounded-none border border-[#2a2a2a] bg-gradient-to-b from-[#141919] to-[#111111] px-5 py-10 text-center sm:px-8">
           {liftPercentiles.length > 0 ? (
-            liftPercentiles.map((lp) => (
-              <div key={lp.id} className="min-w-0">
-                <PercentileCurve
-                  liftName={lp.name}
-                  ratioBW={lp.ratioBW}
-                  percentile={lp.percentile}
-                  typicalRatio={getLiftP50TypicalRatio(lp.id, form.gender, form.bodyweight!)}
-                />
-                {lp.id === 'press' && (
-                  <p className="mt-1 text-[11px] text-[#b0b0b0]">*OHP uses coaching-based standards (Kilgore 2023)*</p>
-                )}
-              </div>
-            ))
+            <>
+              <p className="font-display text-[clamp(2.75rem,9vw,3.75rem)] font-bold leading-none tracking-[0.04em] text-[#f5f2ec]">
+                {rawPercentile}
+                {ordinalSuffix(rawPercentile)} percentile
+              </p>
+              <p className="mt-3 text-sm font-medium uppercase tracking-[0.12em] text-[#5eead4]">
+                ({experienceLabel})
+              </p>
+              <p className="mt-4 font-display text-2xl font-semibold text-[#5eead4] sm:text-3xl">{cohortBand}</p>
+              <p className="mx-auto mt-4 max-w-md text-base font-light leading-relaxed text-[#b0b0b0]">
+                Among lifters in your experience bracket, you&apos;re in the {bandPhaseWord} phase.
+              </p>
+            </>
           ) : (
-            <div className="col-span-2 sm:col-span-4 rounded-none border border-dashed border-[#2a2a2a] bg-[#111111] p-4 text-center">
-              <p className="text-sm text-[#b0b0b0]">Enter at least one lift to see distribution curves.</p>
-            </div>
+            <>
+              <p className="text-lg font-medium text-[#e8e5df]">Add body weight to see percentiles</p>
+              <p className="mt-2 text-sm text-[#b0b0b0]">Percentiles compare your lifts to your cohort by body weight.</p>
+            </>
+          )}
+          {form.gender === 'prefer_not_to_say' && liftPercentiles.length > 0 && (
+            <p className="mx-auto mt-4 max-w-lg text-left text-[11px] leading-snug text-[#888] sm:text-center">
+              Reference tables use male norms until you select Male or Female.
+            </p>
+          )}
+          {form.experience === 'Advanced' && liftPercentiles.length > 0 && (
+            <p className="mx-auto mt-4 max-w-lg text-left text-[11px] leading-snug text-[#888] sm:text-center">
+              Advanced standards reflect drug-tested IPF-level ratios. Newer lifters often get a fairer read by choosing
+              Beginner or Intermediate above.
+            </p>
           )}
         </div>
-      </div>
+      </section>
 
-      {/* Balance score + weak link */}
+      {/* Section 2: Projected percentile vs next stricter standard */}
+      {result.secondaryPercentile != null && liftPercentiles.length > 0 && (
+        <section className="mb-8 text-center">
+          <p className="text-sm italic leading-relaxed text-[#b0b0b0]">
+            When you advance to{' '}
+            {form.experience === 'Beginner' ? 'intermediate' : 'advanced'} training, here&apos;s where you&apos;d rank
+            against that standard:
+          </p>
+          <p className="mt-2 text-sm font-semibold text-[#e8e5df]">
+            {result.secondaryPercentile.percentile}
+            {ordinalSuffix(result.secondaryPercentile.percentile)} percentile (
+            {result.secondaryPercentile.standardsLabel.replace(/ standards$/i, '')} standards)
+          </p>
+        </section>
+      )}
+
+      {/* Section 3: Weak link diagnosis */}
       <section className="mb-8 border-b border-[#2a2a2a] pb-8">
         <div className="rounded-none border border-[#2a2a2a] bg-[#111111] p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-xs font-medium uppercase tracking-wide text-[#b0b0b0]">Balance Score</p>
-              <div className="mt-1 flex items-end gap-3">
-                <div className="font-display text-4xl tracking-[0.02em] text-[#e8c547] leading-[0.9]">
-                  {balanceScore}
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-[#b0b0b0]">Your weak link</h2>
+          {result.oneRMs.length < 2 && (
+            <p className="mt-3 text-sm text-[#b0b0b0]">
+              Add at least two main lifts to unlock ratio-based weak link analysis.
+            </p>
+          )}
+          {canShowWeakLinkBars && weakLinkRatioRow != null && weakIdealMid != null && (
+            <>
+              <p className="mt-3 text-lg font-medium text-[#5eead4]">
+                {weakLinkRatioRow.label}{' '}
+                <span className="text-[#f5f2ec]">= {weakLinkRatioRow.value.toFixed(2)}×</span>
+              </p>
+              <p className="mt-1 text-sm text-[#e8e5df]">
+                Target for your goal ≈ {weakIdealMid.toFixed(2)}×
+              </p>
+              <div className="mt-5 space-y-3">
+                <div>
+                  <div className="mb-1 flex justify-between text-[11px] text-[#b0b0b0]">
+                    <span>Your ratio</span>
+                    <span className="font-medium text-[#fb923c]">{weakLinkRatioRow.value.toFixed(2)}×</span>
+                  </div>
+                  <div className="h-2.5 w-full bg-[#2a2a2a]">
+                    <div
+                      className="h-full bg-[#fb923c]"
+                      style={{
+                        width: `${Math.min(100, (weakLinkRatioRow.value / weakLinkMaxScale) * 100)}%`,
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="pb-1 text-right">
-                  <p className="text-xs font-medium text-[#b0b0b0]">Grade {balanceGrade}</p>
-                  <p className="mt-1 text-xs font-medium text-[#e8e5df]">
-                    {balanceScore >= 90
-                      ? 'You&apos;re in great shape — keep training consistently.'
-                      : balanceScore >= 80
-                        ? 'Close to ideal — focus your next block on your weak ratios.'
-                        : 'Dial in your weakest ratios — that&apos;s where progress comes from.'}
-                  </p>
+                <div>
+                  <div className="mb-1 flex justify-between text-[11px] text-[#b0b0b0]">
+                    <span>Target</span>
+                    <span className="font-medium text-[#4ade80]">{weakIdealMid.toFixed(2)}×</span>
+                  </div>
+                  <div className="h-2.5 w-full bg-[#2a2a2a]">
+                    <div
+                      className="h-full bg-[#4ade80]"
+                      style={{
+                        width: `${Math.min(100, (weakIdealMid / weakLinkMaxScale) * 100)}%`,
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-
-          <div className="mt-5">
-            <h3 className="text-xs font-medium uppercase tracking-wide text-[#b0b0b0]">Your weak link</h3>
-            <p className="mt-2 text-lg font-medium text-[#e8e5df] sm:text-xl">
-              <span className="text-[#e8c547]">{weakLinkLabel}</span>
-            </p>
-            <p className="mt-1 text-sm font-medium text-[#e8e5df]">{weakLinkExplanationOneLine}</p>
-          </div>
+              {penaltyPoints > 0 && (
+                <p className="mt-4 text-sm text-[#e8e5df]">
+                  Gap across lifts is costing you about{' '}
+                  <span className="font-semibold text-[#e8c547]">{penaltyPoints}</span> balance points versus an even
+                  profile.
+                </p>
+              )}
+              <p className="mt-3 text-sm text-[#b0b0b0]">
+                Fix it and climb toward {climbTargetPct}
+                {ordinalSuffix(climbTargetPct)} percentile on your current standard.
+              </p>
+              <p className="mt-2 text-sm font-light text-[#e8e5df]">{weakLinkExplanationOneLine}</p>
+            </>
+          )}
+          {result.oneRMs.length >= 2 && primaryFlag == null && (
+            <p className="mt-3 text-sm text-[#b0b0b0]">Your main ratios look balanced — keep building all patterns.</p>
+          )}
+          {result.oneRMs.length >= 2 && primaryFlag != null && !canShowWeakLinkBars && (
+            <>
+              <p className="mt-3 text-lg font-medium text-[#e8c547]">{weakLinkLabel}</p>
+              <p className="mt-2 text-sm text-[#e8e5df]">{weakLinkExplanationOneLine}</p>
+            </>
+          )}
         </div>
+      </section>
+
+      <p className="mb-8 rounded-none border border-dashed border-[#3a3a3a] bg-[#111111] px-4 py-3 text-xs leading-relaxed text-[#888]">
+        <span className="font-medium text-[#b0b0b0]">Coaches:</span> A dedicated workspace (branded reports, coach
+        notes, athlete roster) will be added in a later phase. For now, PDF export and shareable links work the same for
+        everyone.
+      </p>
+
+      <section className="mb-8 rounded-none border border-[#2a2a2a] bg-[#111111] p-4">
+        <h3 className="text-xs font-medium uppercase tracking-wide text-[#888]">About these percentiles</h3>
+        <p className="mt-2 text-[11px] leading-relaxed text-[#888]">
+          Strength standards are adapted from van den Hoek et al. (2024) drug-tested IPF powerlifting data (squat, bench,
+          deadlift) and Kilgore-style overhead press anchors. Beginner and Intermediate tiers scale those ratios by 0.60
+          and 0.80 so percentiles stay meaningful by training age. Percentiles are relative to your selected cohort and body
+          weight.
+        </p>
+        <a
+          href="https://doi.org/10.1016/j.jsams.2024.07.005"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-block text-[11px] text-[#5eead4] underline hover:text-[#6af0de]"
+        >
+          Open-access paper (DOI)
+        </a>
       </section>
 
       {shouldShowScoreComparison &&
@@ -437,26 +541,23 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
             previousBand={previousBand}
             previousWeakLift={previousWeakLift}
             currentScore={heroScoreValue}
-            currentBand={heroBand}
+            currentBand={cohortBand}
             currentWeakLift={currentWeakLift}
           />
         )}
 
       {/* Main content */}
       <div className="mb-6 space-y-6">
-        {experienceMismatchMessage && (
-          <div className="mb-2 rounded-none border border-[#2a2a2a] bg-[#111111] border-l-4 border-l-[#e8c547] p-4">
-            <p className="text-sm font-medium text-[#e8e5df]">Experience check</p>
-            <p className="mt-1 text-sm font-light text-[#b0b0b0]">{experienceMismatchMessage}</p>
-          </div>
-        )}
-
         {result.ratios.length > 0 && (
           <div>
             <div className="mb-2 flex items-end justify-between gap-3">
               <div>
-                <h3 className="text-xs font-medium uppercase tracking-wide text-[#b0b0b0]">Ratios</h3>
-                <p className="mt-0.5 text-[11px] text-[#b0b0b0]">Goal-specific ideal ranges and what to fix.</p>
+                <h3 className="text-xs font-medium uppercase tracking-wide text-[#b0b0b0]">
+                  Lift balance breakdown
+                </h3>
+                <p className="mt-0.5 text-[11px] text-[#b0b0b0]">
+                  Key ratios vs your goal; weak link ratio highlighted when flagged.
+                </p>
               </div>
               {hasHiddenRatios && (
                 <button
@@ -471,6 +572,7 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
               {visibleRatios.map((r) => {
                 const flag = result.flags.find((f) => f.label === r.label)
+                const isWeakLinkRatio = primaryFlag != null && r.label === primaryFlag.label
                 const idealForGoal = getIdealRangeForGoal(r.id, form.primary_goal)
                 const ratioSentence = getPlainEnglishForRatio(r.id, r.value)
                 const category: FlagCategory =
@@ -512,11 +614,16 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
                     key={r.id}
                     className={`rounded-none border border-[#2a2a2a] bg-[#111111] p-3 ${leftBorderClass} ${
                       inRange ? '' : 'bg-[rgba(232,197,71,0.05)]'
-                    }`}
+                    } ${isWeakLinkRatio && !inRange ? 'ring-1 ring-[#fb923c]/40' : ''}`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-xs font-medium text-[#b0b0b0]">
                         {r.label}
+                        {isWeakLinkRatio && !inRange && (
+                          <span className="ml-1.5 text-[10px] font-semibold uppercase text-[#fb923c]">
+                            weak link
+                          </span>
+                        )}
                       </div>
                       <span
                         className={`inline-block px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.className}`}
@@ -626,93 +733,115 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
               </button>
             </div>
 
-            <p className="text-[11px] text-[#b0b0b0]">We'll also send you a reminder to retest in 8 weeks.</p>
+            <p className="text-[11px] text-[#b0b0b0]">We&apos;ll also send you a reminder to retest in 6 weeks.</p>
           </form>
         </section>
       )}
 
       {prescriptionEmail && (
         <>
-          {/* Top 3 recommendations */}
+          {/* Top 3 recommendations (only when a ratio gap warrants accessories) */}
           <div className="mb-6">
             <h3 className="mb-3 text-sm font-medium text-[#e8e5df]">{recommendationHeader}</h3>
-            {form.equipment.length === 0 && (
-              <p className="mb-3 text-xs text-[#b0b0b0]">
-                No equipment selected — showing recommendations for all equipment types.
+            {!hasAccessoryPrescription && (
+              <p className="text-sm font-light text-[#b0b0b0]">
+                {result.oneRMs.length < 2
+                  ? 'Add at least two main lifts so we can compare ratios and prescribe accessories.'
+                  : 'Your entered ratios are in typical ranges, so there is no targeted accessory block. Add more lifts or retest later if a gap shows up.'}
               </p>
             )}
-            {commonForImbalance && (
-              <p className="mb-3 text-xs font-medium text-[#e8c547]">Addresses: {commonForImbalance}</p>
+            {hasAccessoryPrescription && (
+              <>
+                {form.equipment.length === 0 && (
+                  <p className="mb-3 text-xs text-[#b0b0b0]">
+                    No equipment selected — showing recommendations for all equipment types.
+                  </p>
+                )}
+                {commonForImbalance && (
+                  <p className="mb-3 text-xs font-medium text-[#e8c547]">Addresses: {commonForImbalance}</p>
+                )}
+                <ol className="space-y-3">
+                  {top3.map((a, i) => (
+                    <li
+                      key={i}
+                      className={`flex items-start gap-3 rounded-none border p-3 ${
+                        i === 0
+                          ? 'border-l-4 border-l-[#e8c547] border-[#e8c547]/35 bg-[#0f0f0f]'
+                          : 'border-[#2a2a2a] bg-[#111111]'
+                      }`}
+                    >
+                      <span
+                        className={`flex shrink-0 items-center justify-center rounded-none bg-[#e8c547] text-xs font-medium text-[#0a0a0a] ${
+                          i === 0 ? 'h-8 w-8 text-sm' : 'h-6 w-6'
+                        }`}
+                      >
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        {!commonForImbalance && a.forImbalance && (
+                          <p className="text-xs font-medium text-[#e8c547]">Addresses: {a.forImbalance}</p>
+                        )}
+                        {(() => {
+                          const display = getAccessoryDisplay(a.name)
+                          return (
+                            <>
+                              <p className="text-sm font-semibold text-[#f5f2ec]">{display.exercise}</p>
+                              {display.pattern && <p className="text-xs text-[#b0b0b0]">{display.pattern}</p>}
+                            </>
+                          )
+                        })()}
+                        <div className="mt-1 flex flex-col gap-1">
+                          <p className="text-sm font-light text-[#b0b0b0]">
+                            Sets/Reps: <strong className="text-[#e8e5df] font-semibold">{a.setsReps}</strong>
+                          </p>
+                          {a.suggestedWeight != null && (
+                            <p className="text-sm font-semibold text-[#e8c547]">
+                              {formatKg(a.suggestedWeight, form.units)} {form.units}{' '}
+                              <span className="text-xs font-light text-[#b0b0b0]">suggested</span>
+                            </p>
+                          )}
+                          <p className="text-xs text-[#b0b0b0]">{a.cue ?? cueFallback}</p>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+                <p className="mt-4 text-sm text-[#b0b0b0]">{recommendationFooterText}</p>
+              </>
             )}
-            <ol className="space-y-3">
-              {top3.map((a, i) => (
-                <li
-                  key={i}
-                  className={`flex items-start gap-3 rounded-none border p-3 ${
-                    i === 0
-                      ? 'border-l-4 border-l-[#e8c547] border-[#e8c547]/35 bg-[#0f0f0f]'
-                      : 'border-[#2a2a2a] bg-[#111111]'
-                  }`}
-                >
-                  <span
-                    className={`flex shrink-0 items-center justify-center rounded-none bg-[#e8c547] text-xs font-medium text-[#0a0a0a] ${
-                      i === 0 ? 'h-8 w-8 text-sm' : 'h-6 w-6'
-                    }`}
-                  >
-                    {i + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    {!commonForImbalance && a.forImbalance && (
-                      <p className="text-xs font-medium text-[#e8c547]">Addresses: {a.forImbalance}</p>
-                    )}
-                    {(() => {
-                      const display = getAccessoryDisplay(a.name)
-                      return (
-                        <>
-                          <p className="text-sm font-semibold text-[#f5f2ec]">{display.exercise}</p>
-                          {display.pattern && <p className="text-xs text-[#b0b0b0]">{display.pattern}</p>}
-                        </>
-                      )
-                    })()}
-                    <div className="mt-1 flex flex-col gap-1">
-                      <p className="text-sm font-light text-[#b0b0b0]">
-                        Sets/Reps: <strong className="text-[#e8e5df] font-semibold">{a.setsReps}</strong>
-                      </p>
-                      {a.suggestedWeight != null && (
-                        <p className="text-sm font-semibold text-[#e8c547]">
-                          {formatKg(a.suggestedWeight, form.units)} {form.units} <span className="text-xs font-light text-[#b0b0b0]">suggested</span>
-                        </p>
-                      )}
-                      <p className="text-xs text-[#b0b0b0]">{a.cue ?? cueFallback}</p>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ol>
-            <p className="mt-4 text-sm text-[#b0b0b0]">{recommendationFooterText}</p>
           </div>
 
-          {/* Coach notes (coach mode only) */}
-          {coachMode && (
-            <div className="mb-6">
-              <label className="mb-2 block text-sm font-medium text-[#b0b0b0]">
-                Coach notes <span className="text-[#b0b0b0]">(included in PDF)</span>
-              </label>
-              <textarea
-                value={coachNotesLocal}
-                onChange={(e) => setCoachNotesLocal(e.target.value)}
-                placeholder="Key cues, programming notes, next check-in…"
-                rows={4}
-                className="w-full rounded-none border border-[#2a2a2a] bg-[#111111] px-4 py-3 text-sm font-light text-[#f5f2ec] placeholder:text-[#b0b0b0] focus:border-[#e8c547] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/30"
-              />
+          <section className="mt-6 border-t border-[#e8c547] pt-6">
+            <h3 className="text-sm font-medium text-[#e8e5df]">Run it again in about 6 weeks</h3>
+            <p className="mt-2 text-sm font-light text-[#b0b0b0]">
+              Re-test after your next training block to see how your ratios have shifted.
+            </p>
+            <button
+              type="button"
+              onClick={() => onRetest?.()}
+              className="mt-4 w-full rounded-none bg-[#e8c547] px-4 py-3 font-medium text-[#0a0a0a] hover:bg-[#f5d76a] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/50 focus:ring-offset-2 focus:ring-offset-[#1c1c1c]"
+            >
+              Re-test My Lifts →
+            </button>
+            <div className="mt-3 text-center">
+              <button
+                type="button"
+                onClick={() => void handleExport()}
+                disabled={pdfExportBusy}
+                className="text-xs font-medium text-[#b0b0b0] underline hover:text-[#e8c547] disabled:cursor-not-allowed disabled:text-[#666] disabled:no-underline"
+              >
+                Share your result
+              </button>
             </div>
-          )}
+          </section>
 
           {/* Track your progress reminder */}
           <div className="mb-6 rounded-none border border-[#2a2a2a] bg-[#111111] p-4">
             <p className="text-sm font-medium text-[#f5f2ec]">Track your progress</p>
             <p className="mt-1 text-sm font-light text-[#b0b0b0]">
-              Come back in 8 weeks and re-enter your lifts to see how your ratios have shifted. You should also receive an email reminder to retest at the 8-week mark. Your imbalances typically respond within 2-3 training blocks.
+              Come back in about 6 weeks and re-enter your lifts to see how your ratios have shifted. You should also
+              receive an email reminder to retest around the 6-week mark. Your imbalances typically respond within 2–3
+              training blocks.
             </p>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
               <button
@@ -720,7 +849,7 @@ export function ResultCard({ form, result, coachMode, onSaveScenario }: ResultCa
                 onClick={handleReminder}
                 className="flex-1 rounded-none border border-[#e8c547]/40 bg-[#e8c547]/10 px-4 py-2.5 text-sm font-medium text-[#e8c547] hover:bg-[#e8c547]/15"
               >
-                Set a reminder (8 weeks)
+                Set a reminder (6 weeks)
               </button>
             </div>
             <p className="mt-2 text-xs text-[#b0b0b0]">

@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf'
 import type { FormState, DiagnosticResult } from './types'
-import { IDEAL_RATIOS, getIdealRangeForGoal, getRadarChartData, getHeadlineDiagnosis } from './calculations'
+import { IDEAL_RATIOS, getIdealRangeForGoal, getHeadlineDiagnosis, getPercentileBand } from './calculations'
 import { formatKg } from './units'
 
 const DISCLAIMER =
@@ -173,16 +173,11 @@ function actionLine(doc: jsPDF, text: string, y: number): number {
   return y + boxH + 4
 }
 
+/** Coach-specific PDF header/notes: planned for a later phase (see ResultCard callout). */
 export function generateReportPDF(
   form: FormState,
   result: DiagnosticResult,
-  options?: {
-    initials?: string
-    coachMode?: boolean
-    coachName?: string
-    athleteName?: string
-    coachNotes?: string
-  }
+  options?: { initials?: string }
 ): void {
   ;(async () => {
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
@@ -200,22 +195,14 @@ export function generateReportPDF(
   // ─── Header ─────────────────────────────────────────────────────────────
   doc.setFontSize(FONT.section + 2)
   doc.setFont(pdfFontName, 'bold')
-  doc.text(options?.coachMode ? 'Strength Ratio Assessment Report' : 'Ratio Lifts', MARGIN, y)
+  doc.text('Ratio Lifts', MARGIN, y)
   y += LINE_H
 
   doc.setFontSize(FONT.tiny)
   setMuted(doc)
   doc.setFont(pdfFontName, 'normal')
-  const coachLineParts = [
-    options?.coachMode && options.coachName ? `Coach: ${options.coachName}` : null,
-    options?.coachMode && options.athleteName ? `Athlete: ${options.athleteName}` : null,
-  ].filter(Boolean) as string[]
-  if (coachLineParts.length > 0) {
-    doc.text(coachLineParts.join('  ·  '), MARGIN, y)
-    y += LINE_H
-  }
   doc.text(
-    `${new Date().toLocaleDateString()}${options?.initials ? ` · ${options.initials}` : ''}  ·  ${form.units}  ·  ${result.confidence} confidence`,
+    `${new Date().toLocaleDateString()}${options?.initials ? ` · ${options.initials}` : ''}  ·  ${form.units}  ·  Strength: ${form.experience ?? '—'}  ·  ${result.confidence} confidence`,
     MARGIN,
     y
   )
@@ -225,7 +212,6 @@ export function generateReportPDF(
   const heroX = MARGIN
   const heroW = CONTENT_W
   const heroY = y
-  const heroH = 75
 
   const ordinalSuffix = (n: number) => {
     const abs = Math.abs(Math.round(n))
@@ -239,17 +225,51 @@ export function generateReportPDF(
   }
 
   const hero = result.heroScore
-  const heroTitle = `${hero.displayedScore}${ordinalSuffix(hero.displayedScore)} percentile`
-  const weakLiftWord =
-    hero.weakestLift === 'squat'
-      ? 'squat'
-      : hero.weakestLift === 'bench'
-        ? 'bench'
-        : hero.weakestLift === 'deadlift'
-          ? 'deadlift'
-          : hero.weakestLift === 'press'
-            ? 'OHP'
-            : 'your weak link'
+  const cohortBand = getPercentileBand(hero.rawPercentile)
+  const expUpper = form.experience != null ? `${form.experience.toUpperCase()} STANDARDS` : 'YOUR STANDARDS'
+  const heroTitle = `${hero.rawPercentile}${ordinalSuffix(hero.rawPercentile)} percentile (${expUpper})`
+  const weakLiftWord = (() => {
+    const w = hero.weakestLift
+    if (!w) return 'your weak link'
+    if (w === 'Bench Press') return 'bench'
+    if (w === 'Squat') return 'squat'
+    if (w === 'Deadlift') return 'deadlift'
+    if (w === 'Overhead Press') return 'OHP'
+    return w.toLowerCase()
+  })()
+
+  const heroLines: string[] = []
+  heroLines.push(`Band: ${cohortBand} — among lifters in your experience bracket.`)
+  if (result.secondaryPercentile != null) {
+    heroLines.push(
+      `Projected vs next standard: ${result.secondaryPercentile.percentile}${ordinalSuffix(result.secondaryPercentile.percentile)} percentile (${result.secondaryPercentile.standardsLabel}).`
+    )
+  }
+  if (form.gender === 'prefer_not_to_say') {
+    heroLines.push('Note: Tables use male reference until Male or Female is selected in the app.')
+  }
+  if (hero.balancePenalty > 0 && hero.weakestLift) {
+    heroLines.push(`Imbalance penalty: ${weakLiftWord} drags the profile ~${hero.penaltyPoints} points vs an even lift profile.`)
+  }
+  if (result.oneLineDiagnosis) {
+    heroLines.push(result.oneLineDiagnosis)
+  }
+
+  const lps = result.liftPercentiles ?? []
+  for (const lp of lps) {
+    const liftLabel = lp.id === 'press' ? 'OHP (Kilgore anchor)' : lp.name
+    heroLines.push(`${liftLabel}: ${lp.ratioBW.toFixed(2)}× BW · ${lp.percentile}${ordinalSuffix(lp.percentile)} pct · ${lp.band}`)
+  }
+
+  const heroTextW = heroW - 2 * PAD
+  const wrappedHeroTitle = doc.splitTextToSize(heroTitle, heroTextW)
+  const titleBlockH = wrappedHeroTitle.length * LINE_HEIGHT_SMALL + 1 + LINE_HEIGHT_SMALL + 1
+  let bodyH = 0
+  for (const line of heroLines) {
+    const wrapped = doc.splitTextToSize(line, heroTextW)
+    bodyH += wrapped.length * LINE_HEIGHT_TINY + 0.8
+  }
+  const heroH = Math.max(72, PAD * 2 + titleBlockH + bodyH + 6)
 
   const heroFillY = heroY
   doc.setFillColor(71, 85, 105) // slate-600
@@ -258,49 +278,27 @@ export function generateReportPDF(
   doc.setLineWidth(0.25)
   doc.roundedRect(heroX, heroFillY, heroW, heroH, RADIUS, RADIUS, 'S')
 
-  const heroTextW = heroW - 2 * PAD
   let ty = heroY + PAD + 1
   doc.setFont(pdfFontName, 'bold')
   doc.setFontSize(FONT.small + 1)
   setInk(doc)
-  doc.text(heroTitle, heroX + PAD, ty, { baseline: 'top' })
-  ty += LINE_HEIGHT_SMALL + 1
+  doc.text(wrappedHeroTitle, heroX + PAD, ty, { baseline: 'top' })
+  ty += wrappedHeroTitle.length * LINE_HEIGHT_SMALL + 1
 
   doc.setFont(pdfFontName, 'bold')
   doc.setFontSize(FONT.small)
   setAccent(doc)
-  doc.text(hero.band, heroX + PAD, ty, { baseline: 'top' })
+  doc.text(cohortBand, heroX + PAD, ty, { baseline: 'top' })
   ty += LINE_HEIGHT_SMALL + 1
 
   doc.setFont(pdfFontName, 'normal')
   doc.setFontSize(FONT.tiny)
   setMuted(doc)
 
-  const heroLines: string[] = []
-  if (hero.balancePenalty > 0 && hero.weakestLift) {
-    heroLines.push(`Weak link: your ${weakLiftWord} (−${hero.penaltyPoints} points).`)
-    heroLines.push(`Fix it and you climb toward ${hero.rawPercentile}${ordinalSuffix(hero.rawPercentile)}.`)
-  } else if (result.oneLineDiagnosis) {
-    heroLines.push(result.oneLineDiagnosis)
-  }
-
-  // Per-lift percentiles (BW ratio + percentile)
-  const lps = result.liftPercentiles ?? []
-  for (const lp of lps) {
-    const liftLabel = lp.id === 'press' ? 'OHP' : lp.name
-    heroLines.push(`${liftLabel}: ${lp.ratioBW.toFixed(2)}× BW · ${lp.percentile}${ordinalSuffix(lp.percentile)} percentile`)
-  }
-
-  // Context line about reference population.
-  heroLines.push(
-    '*Compared against 800,000+ drug-tested competitive powerlifters. Most gym lifters fall in Getting Started or Developing — that is expected and normal.*'
-  )
-
   for (const line of heroLines) {
     const wrapped = doc.splitTextToSize(line, heroTextW)
     doc.text(wrapped, heroX + PAD, ty, { baseline: 'top' })
     ty += wrapped.length * LINE_HEIGHT_TINY + 0.8
-    if (ty > heroY + heroH - PAD - 2) break
   }
 
   y = heroY + heroH + 4
@@ -315,8 +313,8 @@ export function generateReportPDF(
   const headline = getHeadlineDiagnosis(result.oneRMs, result.flags, form.units)
   const diag = doc.splitTextToSize(headline, diagWrapW)
   const titleH = LINE_HEIGHT_SMALL   // same scale as Action label
-  const bodyH = Math.max(1, diag.length) * LINE_HEIGHT_SMALL
-  const insightContentH = titleH + 1.5 + bodyH
+  const insightBodyH = Math.max(1, diag.length) * LINE_HEIGHT_SMALL
+  const insightContentH = titleH + 1.5 + insightBodyH
   const insightH = Math.max(20, 2 * PAD + insightContentH)
   doc.setFillColor(71, 85, 105) // slate-600
   doc.roundedRect(insightX, insightY, insightW, insightH, RADIUS, RADIUS, 'F')
@@ -337,90 +335,27 @@ export function generateReportPDF(
   doc.text(diag, insightX + PAD, insightContentTop + titleH + 1.5, opts)
 
   const focus = result.accessories?.[0]?.forImbalance
-  const mainAction =
-    focus != null
-      ? `Prioritise ${focus.toLowerCase()} for 4 weeks.`
-      : 'Prioritise the accessory work below for 4 weeks.'
+  const hasAccessories = (result.accessories?.length ?? 0) > 0
+  const mainAction = !hasAccessories
+    ? 'No ratio gap to target — keep balanced training and retest in 6 weeks.'
+    : focus != null
+      ? `Prioritise ${focus.toLowerCase()} for 6 weeks.`
+      : 'Prioritise the accessory work below for 6 weeks.'
   y = insightY + insightH + 6
   y = actionLine(doc, mainAction, y)
   y += SECTION_GAP - 2
 
-  // ─── Strength profile radar (simple polygon) ────────────────────────────
-  if (result.oneRMs.length > 0) {
-    y = ensureSpace(doc, y, 58)
-    sectionHeader(doc, 'Strength profile (radar)', y)
-    y += LINE_H + 2
-
-    const data = getRadarChartData(result.oneRMs, form.primary_goal, form.bodyweight)
-    const cx = MARGIN + CONTENT_W / 2
-    const cy = y + 26
-    const radius = 18
-
-    // axes
-    doc.setDrawColor(100, 116, 139)
-    doc.setLineWidth(0.2)
-    const n = data.length
-    for (let i = 0; i < n; i++) {
-      const ang = (Math.PI * 2 * i) / n - Math.PI / 2
-      const ax = cx + Math.cos(ang) * radius
-      const ay = cy + Math.sin(ang) * radius
-      doc.line(cx, cy, ax, ay)
-    }
-
-    function polygonPoints(key: 'user' | 'ideal'): [number, number][] {
-      return data.map((d, i) => {
-        const ang = (Math.PI * 2 * i) / n - Math.PI / 2
-        const r = (d[key] / 100) * radius
-        return [cx + Math.cos(ang) * r, cy + Math.sin(ang) * r]
-      })
-    }
-
-    const userPts = polygonPoints('user')
-    const idealPts = polygonPoints('ideal')
-
-    // ideal outline
-    doc.setDrawColor(PALETTE.muted.r, PALETTE.muted.g, PALETTE.muted.b)
-    doc.setLineWidth(0.4)
-    for (let i = 0; i < idealPts.length; i++) {
-      const [x1, y1] = idealPts[i]!
-      const [x2, y2] = idealPts[(i + 1) % idealPts.length]!
-      doc.line(x1, y1, x2, y2)
-    }
-
-    // user outline + light fill
-    doc.setDrawColor(PALETTE.accent.r, PALETTE.accent.g, PALETTE.accent.b)
-    doc.setLineWidth(0.6)
-    for (let i = 0; i < userPts.length; i++) {
-      const [x1, y1] = userPts[i]!
-      const [x2, y2] = userPts[(i + 1) % userPts.length]!
-      doc.line(x1, y1, x2, y2)
-    }
-
-    // labels
-    doc.setFont(pdfFontName, 'normal')
-    doc.setFontSize(FONT.tiny)
-    setMuted(doc)
-    for (let i = 0; i < n; i++) {
-      const ang = (Math.PI * 2 * i) / n - Math.PI / 2
-      const lx = cx + Math.cos(ang) * (radius + 6)
-      const ly = cy + Math.sin(ang) * (radius + 6)
-      const row = data[i]!
-      const label =
-        row.subject === 'BW ratio'
-          ? `BW ${row.oneRM.toFixed(2)}`
-          : `${row.subject} ${formatKg(row.oneRM, form.units)} ${form.units}`
-      doc.text(label, lx, ly, { align: 'center' })
-    }
-
-    // legend
-    setAccent(doc)
-    doc.text('Your profile', MARGIN, y + 50)
-    setMuted(doc)
-    doc.text(`Ideal for ${form.primary_goal}`, MARGIN + 34, y + 50)
-    setInk(doc)
-    y += 56
-    y += SECTION_GAP - 2
-  }
+  // ─── Methodology (compact) ──────────────────────────────────────────────
+  y = ensureSpace(doc, y, 22)
+  doc.setFont(pdfFontName, 'normal')
+  doc.setFontSize(FONT.tiny)
+  setMuted(doc)
+  const methodLines = doc.splitTextToSize(
+    'Percentiles: van den Hoek et al. (2024) IPF ratios (SBD) + Kilgore OHP anchors; Beginner/Intermediate tiers scale Advanced by 0.60/0.80. DOI 10.1016/j.jsams.2024.07.005',
+    CONTENT_W
+  )
+  doc.text(methodLines, MARGIN, y)
+  y += methodLines.length * LINE_HEIGHT_TINY + SECTION_GAP
 
   // ─── 1RM snapshot (simple grid) ─────────────────────────────────────────
   y = ensureSpace(doc, y, 50)
@@ -432,7 +367,7 @@ export function generateReportPDF(
   doc.setFontSize(FONT.tiny)
   setMuted(doc)
   const metaParts = [
-    `Experience: ${form.experience}`,
+    `Strength level: ${form.experience ?? '—'}`,
     `Frequency: ${form.training_frequency}/wk`,
     `Goal: ${form.primary_goal}`,
     form.bodyweight != null ? `BW: ${formatKg(form.bodyweight, form.units)} ${form.units}` : null,
@@ -503,7 +438,7 @@ export function generateReportPDF(
 
   y += rows * (cellH + GUTTER) - GUTTER
   y += 5
-  y = actionLine(doc, 'Use these as baselines. Retest every 4–6 weeks.', y)
+  y = actionLine(doc, 'Use these as baselines. Retest every 6 weeks.', y)
   y += SECTION_GAP - 2
 
   // ─── Ratios with bar + typical range + action ───────────────────────────
@@ -603,84 +538,85 @@ export function generateReportPDF(
       }
       y += 1
     }
-    y = actionLine(doc, 'Use these bars to spot what to bring up next. Keep the focus for 4 weeks, then retest.', y + 1)
+    y = actionLine(doc, 'Use these bars to spot what to bring up next. Keep the focus for 6 weeks, then retest.', y + 1)
     y += SECTION_GAP - 2
   }
 
-  // ─── Accessory cards (top 3) ─────────────────────────────────────────────
-  y = ensureSpace(doc, y, 35)
+  // ─── Accessory cards (top 3) — only when ratio diagnostics prescribe work ─
   const topAccessories = (result.accessories || []).slice(0, 3)
-  const topAccessoryCount = topAccessories.length
-  sectionHeader(doc, `Accessory focus (top ${topAccessoryCount})`, y)
-  y += LINE_H + 2
+  if (topAccessories.length > 0) {
+    y = ensureSpace(doc, y, 35)
+    sectionHeader(doc, `Accessory focus (top ${topAccessories.length})`, y)
+    y += LINE_H + 2
 
-  const cardH = 21
-  const cardGap = 3
-  const cardW = CONTENT_W
-  const cardPad = PAD
-  const cardTextW = cardW - 2 * cardPad
-  const cardOpts = { baseline: 'top' as const }
+    const cardH = 21
+    const cardGap = 3
+    const cardW = CONTENT_W
+    const cardPad = PAD
+    const cardTextW = cardW - 2 * cardPad
+    const cardOpts = { baseline: 'top' as const }
 
-  for (const a of topAccessories) {
-    y = ensureSpace(doc, y, cardH + cardGap + 2)
-    doc.setFillColor(51, 65, 85) // slate-700
-    doc.roundedRect(MARGIN, y, cardW, cardH, RADIUS, RADIUS, 'F')
-    doc.setDrawColor(100, 116, 139)
-    doc.setLineWidth(0.2)
-    doc.roundedRect(MARGIN, y, cardW, cardH, RADIUS, RADIUS, 'S')
+    for (const a of topAccessories) {
+      y = ensureSpace(doc, y, cardH + cardGap + 2)
+      doc.setFillColor(51, 65, 85) // slate-700
+      doc.roundedRect(MARGIN, y, cardW, cardH, RADIUS, RADIUS, 'F')
+      doc.setDrawColor(100, 116, 139)
+      doc.setLineWidth(0.2)
+      doc.roundedRect(MARGIN, y, cardW, cardH, RADIUS, RADIUS, 'S')
 
-    const hasImbalance = a.forImbalance != null && String(a.forImbalance).trim().length > 0
-    const cue = a.cue ?? 'Keep reps clean; stop 1–2 reps before failure.'
-    const cueLines = doc.splitTextToSize(cue, cardTextW)
-    const cueH = cueLines.length * LINE_HEIGHT_TINY
+      const hasImbalance = a.forImbalance != null && String(a.forImbalance).trim().length > 0
+      const cue = a.cue ?? 'Keep reps clean; stop 1–2 reps before failure.'
+      const cueLines = doc.splitTextToSize(cue, cardTextW)
+      const cueH = cueLines.length * LINE_HEIGHT_TINY
 
-    let contentH = LINE_HEIGHT_NORMAL + 1
-    if (hasImbalance) contentH += LINE_HEIGHT_TINY + 0.5
-    contentH += LINE_HEIGHT_SMALL + 1 + cueH
-    const contentTop = y + (cardH - contentH) / 2
-    let rowY = contentTop
+      let contentH = LINE_HEIGHT_NORMAL + 1
+      if (hasImbalance) contentH += LINE_HEIGHT_TINY + 0.5
+      contentH += LINE_HEIGHT_SMALL + 1 + cueH
+      const contentTop = y + (cardH - contentH) / 2
+      let rowY = contentTop
 
-    doc.setFont(pdfFontName, 'bold')
-    doc.setFontSize(FONT.normal)
-    setInk(doc)
-    const nameLines = doc.splitTextToSize(a.name, cardTextW)
-    doc.text(nameLines, MARGIN + cardPad, rowY, cardOpts)
-    rowY += nameLines.length * LINE_HEIGHT_NORMAL + 1
+      doc.setFont(pdfFontName, 'bold')
+      doc.setFontSize(FONT.normal)
+      setInk(doc)
+      const nameLines = doc.splitTextToSize(a.name, cardTextW)
+      doc.text(nameLines, MARGIN + cardPad, rowY, cardOpts)
+      rowY += nameLines.length * LINE_HEIGHT_NORMAL + 1
 
-    if (hasImbalance) {
+      if (hasImbalance) {
+        doc.setFont(pdfFontName, 'normal')
+        doc.setFontSize(FONT.tiny)
+        setAccent(doc)
+        doc.text(`Addresses: ${a.forImbalance}`, MARGIN + cardPad, rowY, cardOpts)
+        rowY += LINE_HEIGHT_TINY + 0.5
+      }
+
       doc.setFont(pdfFontName, 'normal')
+      doc.setFontSize(FONT.small)
+      setMuted(doc)
+      const weightStr = a.suggestedWeight != null ? ` · ${formatKg(a.suggestedWeight, form.units)} ${form.units}` : ''
+      const rx = `${a.setsReps || ''}${weightStr}`.trim() || '—'
+      doc.text(rx, MARGIN + cardPad, rowY, cardOpts)
+      rowY += LINE_HEIGHT_SMALL + 1
+
       doc.setFontSize(FONT.tiny)
-      setAccent(doc)
-      doc.text(`Addresses: ${a.forImbalance}`, MARGIN + cardPad, rowY, cardOpts)
-      rowY += LINE_HEIGHT_TINY + 0.5
+      doc.text(cueLines, MARGIN + cardPad, rowY, cardOpts)
+
+      y += cardH + cardGap
     }
 
-    doc.setFont(pdfFontName, 'normal')
-    doc.setFontSize(FONT.small)
-    setMuted(doc)
-    const weightStr = a.suggestedWeight != null ? ` · ${formatKg(a.suggestedWeight, form.units)} ${form.units}` : ''
-    const rx = `${a.setsReps || ''}${weightStr}`.trim() || '—'
-    doc.text(rx, MARGIN + cardPad, rowY, cardOpts)
-    rowY += LINE_HEIGHT_SMALL + 1
-
-    doc.setFontSize(FONT.tiny)
-    doc.text(cueLines, MARGIN + cardPad, rowY, cardOpts)
-
-    y += cardH + cardGap
+    y = actionLine(
+      doc,
+      'Run these for 6 weeks. Increase load when you hit the top end with good form.',
+      y + 2
+    )
+    y += SECTION_GAP - 2
   }
-
-  y = actionLine(
-    doc,
-    'Run these for 4 weeks. Increase load when you hit the top end with good form.',
-    y + 2
-  )
-  y += SECTION_GAP - 2
 
   // ─── Footer ──────────────────────────────────────────────────────────────
   y = ensureSpace(doc, y, 18)
   doc.setFontSize(FONT.tiny)
   setMuted(doc)
-  const footer = `Reminder: Retest every 4–6 weeks.`
+  const footer = `Reminder: Retest every 6 weeks.`
   doc.setFont(pdfFontName, 'bold')
   setAccent(doc)
   doc.text(footer, MARGIN + PAD, y)
@@ -695,18 +631,6 @@ export function generateReportPDF(
     doc.text('1RM: Epley formula — weight × (1 + reps/30)', MARGIN + PAD, y)
   }
   setInk(doc)
-
-  if (options?.coachMode && options.coachNotes) {
-    y = ensureSpace(doc, y + 6, 30)
-    sectionHeader(doc, 'Coach notes', y)
-    y += LINE_H + 2
-    doc.setFont(pdfFontName, 'normal')
-    doc.setFontSize(FONT.small)
-    setMuted(doc)
-    const notesLines = doc.splitTextToSize(options.coachNotes, CONTENT_W - 2 * PAD)
-    doc.text(notesLines, MARGIN + PAD, y)
-    setInk(doc)
-  }
 
   doc.save('ratio-lifts-report.pdf')
   })()

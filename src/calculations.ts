@@ -15,8 +15,9 @@ import type {
   StrengthBand,
   Units,
 } from './types'
+import { LIFT_NAMES } from './types'
 import { KG_TO_LB } from './units'
-import { VAN_DEN_HOEK_THRESHOLDS } from './data/van_den_hoek_thresholds'
+import { getAnchorsForLiftAndExperience } from './data/strengthStandards'
 
 const ROUND_1 = (n: number) => Math.round(n * 10) / 10
 const ROUND_2 = (n: number) => Math.round(n * 100) / 100
@@ -140,7 +141,7 @@ export function computeRatios(oneRMs: Lift1RM[]): { id: string; label: string; v
 }
 
 // Ideal ratio targets (midpoint of typical ranges). RULES.md §3.
-// Lower-to-upper ratios derived from TYPICAL_RATIO_BW (squat 1.25, bench 1.0, deadlift 1.5, press 0.6).
+// Lower-to-upper ratios derived from typical strength ratios (squat 1.25, bench 1.0, deadlift 1.5, press 0.6).
 export const IDEAL_RATIOS: Record<string, { ideal: number; range: string }> = {
   bench_to_squat: { ideal: 0.75, range: '0.45–1.1' },
   squat_to_deadlift: { ideal: 0.9, range: '0.8–1.0' },
@@ -289,7 +290,7 @@ export function generateFlags(ratios: { id: string; value: number }[]): RatioFla
     if (v < 1.3) {
       id = 'deadlift_lagging_bench'
       message =
-        'Deadlift lagging relative to bench — increase posterior-chain volume (aim ~6–10 hard sets/week of hinge + hamstring work for 4–6 weeks).'
+        'Deadlift lagging relative to bench — increase posterior-chain volume (aim ~6–10 hard sets/week of hinge + hamstring work for 6 weeks).'
     } else if (v > 1.7) {
       id = 'bench_lagging_deadlift'
       message = 'Bench lagging relative to deadlift — consider horizontal push work.'
@@ -348,7 +349,7 @@ export function generateFlags(ratios: { id: string; value: number }[]): RatioFla
 export function computeConfidence(inputs: {
   lifts: LiftInput[]
   bodyweight?: number
-  experience: Experience
+  experience: Experience | null
 }): ConfidenceLevel {
   const validLiftCount = inputs.lifts.filter(
     (l) =>
@@ -371,7 +372,7 @@ export function computeConfidence(inputs: {
 export function getConfidenceReasons(inputs: {
   lifts: LiftInput[]
   bodyweight?: number
-  experience: Experience
+  experience: Experience | null
   confidence: ConfidenceLevel
 }): string {
   const validLifts = inputs.lifts.filter(
@@ -465,7 +466,7 @@ export function getHeadlineDiagnosis(
     return `Your squat-to-deadlift balance is off. ${primary.id === 'deadlift_dominant' ? 'Posterior-chain accessories will round out your lower body.' : 'Adding deadlift volume will bring your total up.'}`
   }
   if (primary.id === 'deadlift_lagging_bench' || primary.id === 'deadlift_lagging_press') {
-    return 'Your deadlift is lagging relative to your upper body. Hinge and hamstring volume for 4–6 weeks will close the gap.'
+    return 'Your deadlift is lagging relative to your upper body. Hinge and hamstring volume for 6 weeks will close the gap.'
   }
   if (primary.id === 'press_weak' || primary.id === 'press_lagging_squat' || primary.id === 'press_lagging_deadlift') {
     return 'Your overhead press is the bottleneck. Shoulder stability and pressing volume will pay off across your other lifts.'
@@ -710,36 +711,10 @@ const ACCESSORY_MAP: Record<
   },
 }
 
-// Typical ratioBW for 50th percentile (intermediate). Used for heuristic percentiles.
-export const TYPICAL_RATIO_BW: Record<LiftId, number> = {
-  squat: 1.25,
-  bench: 1.0,
-  deadlift: 1.5,
-  press: 0.6,
-}
-
-const KILGORE_OHP_THRESHOLDS = {
-  male: {
-    bwRatios: { p10: 0.35, p25: 0.50, p50: 0.65, p75: 0.80, p90: 1.00 },
-  },
-  female: {
-    bwRatios: { p10: 0.20, p25: 0.30, p50: 0.40, p75: 0.52, p90: 0.65 },
-  },
-} as const
-
 const clamp01 = (t: number): number => Math.max(0, Math.min(1, t))
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t
 
 type PercentileAnchors = { p10: number; p25: number; p50: number; p75: number; p90: number }
-type VanDenHoekGender = 'male' | 'female'
-type VanDenHoekWeightClass = number | 'open'
-type VanDenHoekLift = 'squat' | 'bench' | 'deadlift'
-
-// Narrowly-typed view of the imported threshold table (avoids `any` for linting).
-const VAN_DEN_HOEK_THRESHOLDS_TYPED = VAN_DEN_HOEK_THRESHOLDS as unknown as Record<
-  VanDenHoekGender,
-  Record<VanDenHoekWeightClass, Record<VanDenHoekLift, PercentileAnchors>>
->
 
 // Interpolate bwRatio → percentile using p10/p25/p50/p75/p90 anchor ratios.
 function interpolatePercentile(bwRatio: number, anchors: PercentileAnchors): number {
@@ -774,31 +749,97 @@ function interpolatePercentile(bwRatio: number, anchors: PercentileAnchors): num
   return Math.round(lerp(90, 100, clamp01(t)))
 }
 
-function getIPFWeightClass(bodyweightKg: number, gender: 'male' | 'female'): number | 'open' {
-  const maleClasses = [53, 59, 66, 74, 83, 93, 105, 120]
-  const femaleClasses = [43, 47, 52, 57, 63, 69, 76, 84]
-  const classes = gender === 'male' ? maleClasses : femaleClasses
-  const match = classes.find((c) => bodyweightKg <= c)
-  return (match ?? 'open') as number | 'open'
+/** Plain-language band from a 1–100 population percentile. */
+export function getPercentileBand(percentile: number): StrengthBand {
+  const p = Math.round(percentile)
+  if (p <= 20) return 'Getting Started'
+  if (p <= 40) return 'Developing'
+  if (p <= 60) return 'Solid'
+  if (p <= 80) return 'Strong'
+  return 'Elite'
 }
 
-function getLiftPercentile(
-  bwRatio: number,
-  lift: 'squat' | 'bench' | 'deadlift' | 'ohp',
-  gender: 'male' | 'female' | 'prefer_not_to_say',
-  bodyweightKg: number
-): number {
-  // prefer_not_to_say uses male reference tables
-  const g: 'male' | 'female' = gender === 'prefer_not_to_say' ? 'male' : gender
+const LIFT_NAME_TO_ID: Record<string, 'squat' | 'bench' | 'deadlift' | 'press'> = {
+  Squat: 'squat',
+  'Bench Press': 'bench',
+  Bench: 'bench',
+  Deadlift: 'deadlift',
+  'Overhead Press': 'press',
+  OHP: 'press',
+}
 
-  if (lift === 'ohp') {
-    const anchors = KILGORE_OHP_THRESHOLDS[g].bwRatios
-    return interpolatePercentile(bwRatio, anchors)
+function exerciseToLiftId(exercise: string): 'squat' | 'bench' | 'deadlift' | 'press' {
+  const k = exercise.trim()
+  const direct = LIFT_NAME_TO_ID[k]
+  if (direct) return direct
+  const lower = k.toLowerCase()
+  if (lower.includes('squat')) return 'squat'
+  if (lower.includes('bench')) return 'bench'
+  if (lower.includes('dead')) return 'deadlift'
+  if (lower.includes('overhead') || lower === 'ohp' || lower.includes('shoulder press')) return 'press'
+  return 'squat'
+}
+
+/**
+ * Single-lift percentile vs experience-stratified standards (van den Hoek 2024 + Kilgore OHP, scaled for Beginner/Intermediate).
+ */
+export function calculatePercentile(
+  exercise: string,
+  estimatedOneRM: number,
+  bodyweight: number,
+  sex: 'Male' | 'Female',
+  experienceLevel: Experience
+): {
+  percentile: number
+  band: StrengthBand
+  /** Percentile vs Advanced (IPF) standards — only when experience is Beginner or Intermediate. */
+  projectedAtAdvanced?: number
+} {
+  const liftId = exerciseToLiftId(exercise)
+  const gender: Gender = sex === 'Female' ? 'female' : 'male'
+  const bwRatio = estimatedOneRM / bodyweight
+  const anchors = getAnchorsForLiftAndExperience(liftId, gender, bodyweight, experienceLevel)
+  const percentile = interpolatePercentile(bwRatio, anchors)
+  const band = getPercentileBand(percentile)
+
+  let projectedAtAdvanced: number | undefined
+  if (experienceLevel !== 'Advanced') {
+    const adv = getAnchorsForLiftAndExperience(liftId, gender, bodyweight, 'Advanced')
+    projectedAtAdvanced = interpolatePercentile(bwRatio, adv)
   }
 
-  const weightClass = getIPFWeightClass(bodyweightKg, g)
-  const thresholds = VAN_DEN_HOEK_THRESHOLDS_TYPED[g][weightClass][lift]
-  return interpolatePercentile(bwRatio, thresholds)
+  return { percentile, band, projectedAtAdvanced }
+}
+
+function getLiftPercentileForTier(
+  bwRatio: number,
+  lift: 'squat' | 'bench' | 'deadlift' | 'press',
+  gender: Gender,
+  bodyweightKg: number,
+  tier: Experience
+): number {
+  const anchors = getAnchorsForLiftAndExperience(lift, gender, bodyweightKg, tier)
+  return interpolatePercentile(bwRatio, anchors)
+}
+
+function getProjectedNextTierPercentile(
+  bwRatio: number,
+  lift: 'squat' | 'bench' | 'deadlift' | 'press',
+  gender: Gender,
+  bodyweightKg: number,
+  experience: Experience
+): { percentile: number; standardsName: 'Intermediate' | 'Advanced' } | undefined {
+  if (experience === 'Advanced') return undefined
+  if (experience === 'Beginner') {
+    return {
+      percentile: getLiftPercentileForTier(bwRatio, lift, gender, bodyweightKg, 'Intermediate'),
+      standardsName: 'Intermediate',
+    }
+  }
+  return {
+    percentile: getLiftPercentileForTier(bwRatio, lift, gender, bodyweightKg, 'Advanced'),
+    standardsName: 'Advanced',
+  }
 }
 
 function average(nums: number[]): number {
@@ -838,16 +879,13 @@ function computeBalancePenalty(liftPercentiles: Record<string, number>): {
   }
 
   const penalty = deviationToPenalty(worstDeviation)
-  return { penalty, weakestLift: worstLift, deviation: worstDeviation }
+  const weakestName =
+    worstLift != null && worstLift in LIFT_NAMES ? LIFT_NAMES[worstLift as LiftId] : null
+  return { penalty, weakestLift: weakestName, deviation: worstDeviation }
 }
 
 function scoreToBand(score: number): StrengthBand {
-  if (score <= 20) return 'Getting Started'
-  if (score <= 40) return 'Developing'
-  if (score <= 60) return 'Intermediate'
-  if (score <= 75) return 'Solid'
-  if (score <= 90) return 'Advanced'
-  return 'Elite'
+  return getPercentileBand(score)
 }
 
 function computeHeroScore(
@@ -873,7 +911,8 @@ function computeHeroScore(
 export function computeLiftPercentiles(
   oneRMs: Lift1RM[],
   bodyweight: number | undefined,
-  gender: Gender
+  gender: Gender,
+  experience: Experience
 ): LiftPercentile[] {
   if (bodyweight == null || bodyweight <= 0) return []
 
@@ -882,9 +921,19 @@ export function computeLiftPercentiles(
 
   for (const lift of oneRMs) {
     const ratioBW = ROUND_2(lift.oneRM / bodyweightKg)
-    const tableLift: 'squat' | 'bench' | 'deadlift' | 'ohp' = lift.id === 'press' ? 'ohp' : lift.id
-    const percentile = getLiftPercentile(ratioBW, tableLift, gender, bodyweightKg)
-    result.push({ id: lift.id, name: lift.name, ratioBW, percentile })
+    const tableLift = lift.id
+    const percentile = getLiftPercentileForTier(ratioBW, tableLift, gender, bodyweightKg, experience)
+    const band = getPercentileBand(percentile)
+    const next = getProjectedNextTierPercentile(ratioBW, tableLift, gender, bodyweightKg, experience)
+    result.push({
+      id: lift.id,
+      name: lift.name,
+      ratioBW,
+      percentile,
+      band,
+      projectedNextTierPercentile: next?.percentile,
+      projectedNextTierStandardsName: next?.standardsName,
+    })
   }
 
   return result
@@ -896,15 +945,8 @@ export function getLiftP50TypicalRatio(
   gender: Gender,
   bodyweightKg: number
 ): number {
-  const g: 'male' | 'female' = gender === 'prefer_not_to_say' ? 'male' : gender
-
-  if (liftId === 'press') {
-    return KILGORE_OHP_THRESHOLDS[g].bwRatios.p50
-  }
-
-  const weightClass = getIPFWeightClass(bodyweightKg, g)
-  const thresholds = VAN_DEN_HOEK_THRESHOLDS_TYPED[g][weightClass][liftId]
-  return thresholds.p50
+  const anchors = getAnchorsForLiftAndExperience(liftId, gender, bodyweightKg, 'Advanced')
+  return anchors.p50
 }
 
 // Map accessory names to related lift for weight suggestion (% of 1RM)
@@ -1002,6 +1044,9 @@ function getAccessories(
   equipment: string[] | undefined,
   training_frequency: FormState['training_frequency']
 ): AccessoryExercise[] {
+  // Accessories only when ratio diagnostics are possible (≥2 lifts) and at least one non-typical flag.
+  if (oneRMs.length < 2) return []
+
   const toAcc = (s: string) => toAccessoryExercise(s, oneRMs)
   const flagged = flags.filter((f) => !f.id.startsWith('typical_'))
   const prioritised = getPrioritisedFlags(flagged)
@@ -1057,26 +1102,6 @@ function getAccessories(
   const desiredSets =
     training_frequency === '1-2' ? 2 : training_frequency === '5+' ? 4 : null
 
-  const FALLBACK_EXERCISE_STRINGS = [
-    // Lower-body
-    'RDL 3x6',
-    'Single-leg RDL light 3x6',
-    'Hip thrust 3x6',
-    'Bulgarian Split Squat 3x8',
-    'Glute bridge 3x8',
-    'Hamstring curl 3x10',
-    // Upper-body / press & arms
-    'Incline Dumbbell Press 3x8',
-    'Dumbbell Floor Press 3x8',
-    'Seated DB press 3x6',
-    'Dumbbell Overhead Triceps Extension 3x10',
-    'Push-ups 3x10',
-    'Diamond Push-ups 3x10',
-    // Shoulders / pulls
-    'Face pulls 3x12',
-    'Lateral raises 3x10',
-  ]
-
   const adjustSetsReps = (a: AccessoryExercise): AccessoryExercise => {
     if (desiredSets == null) return a
     const m = a.setsReps.match(/^(\d+)x(\d+)$/)
@@ -1085,19 +1110,7 @@ function getAccessories(
     return { ...a, setsReps: `${desiredSets}x${reps}` }
   }
 
-  if (prioritised.length === 0) {
-    const out: AccessoryExercise[] = []
-    const seen = new Set<string>()
-    for (const s of FALLBACK_EXERCISE_STRINGS) {
-      const acc = toAcc(s)
-      if (seen.has(acc.name)) continue
-      if (equipmentSet.size > 0 && !accessorySupportsSelectedEquipment(acc.name)) continue
-      out.push(acc)
-      seen.add(acc.name)
-      if (out.length >= targetCount) break
-    }
-    return out.map(adjustSetsReps)
-  }
+  if (prioritised.length === 0) return []
 
   const notes = (injuryNotes ?? '').toLowerCase()
   const hasKneeNote = notes.includes('knee')
@@ -1143,17 +1156,6 @@ function getAccessories(
     exerciseIndex += 1
   }
 
-  if (result.length < targetCount) {
-    for (const s of FALLBACK_EXERCISE_STRINGS) {
-      if (result.length >= targetCount) break
-      const acc = toAcc(s)
-      if (seen.has(acc.name)) continue
-      if (equipmentSet.size > 0 && !accessorySupportsSelectedEquipment(acc.name)) continue
-      result.push(acc)
-      seen.add(acc.name)
-    }
-  }
-
   return result.slice(0, targetCount).map(adjustSetsReps)
 }
 
@@ -1185,7 +1187,7 @@ function oneLineDiagnosis(flags: RatioFlag[], confidence: ConfidenceLevel): stri
   if (first.id === 'bench_lagging_squat')
     return `${soft}Bench lagging relative to squat — consider horizontal push and triceps work.`
   if (first.id === 'deadlift_lagging_bench')
-    return `${soft}Deadlift lagging relative to bench — increase posterior-chain volume (aim ~6–10 hard sets/week of hinges/hamstrings for 4–6 weeks).`
+    return `${soft}Deadlift lagging relative to bench — increase posterior-chain volume (aim ~6–10 hard sets/week of hinges/hamstrings for 6 weeks).`
   if (first.id === 'bench_lagging_deadlift')
     return `${soft}Bench lagging relative to deadlift — consider horizontal push work.`
   if (first.id === 'squat_lagging_press')
@@ -1211,13 +1213,18 @@ export function runDiagnostic(
     equipment?: string[]
   }
 ): DiagnosticResult {
+  const experience = form.experience
+  if (experience == null) {
+    throw new Error('runDiagnostic requires an experience (strength) level')
+  }
+
   const oneRMs = compute1RMs(lifts)
   const ratios = computeRatios(oneRMs)
   const flags = generateFlags(ratios)
   const confidence = computeConfidence({
     lifts,
     bodyweight: form.bodyweight,
-    experience: form.experience,
+    experience,
   })
   const oneLineDiagnosisText = oneLineDiagnosis(flags, confidence)
   const accessories = getAccessories(
@@ -1228,7 +1235,7 @@ export function runDiagnostic(
     form.equipment,
     form.training_frequency
   )
-  const liftPercentiles = computeLiftPercentiles(oneRMs, form.bodyweight, form.gender)
+  const liftPercentiles = computeLiftPercentiles(oneRMs, form.bodyweight, form.gender, experience)
 
   const liftPercentilesById = liftPercentiles.reduce<Record<string, number>>((acc, lp) => {
     acc[lp.id] = lp.percentile
@@ -1237,6 +1244,20 @@ export function runDiagnostic(
 
   const { penalty: balancePenalty, weakestLift } = computeBalancePenalty(liftPercentilesById)
   const heroScore = computeHeroScore(liftPercentilesById, balancePenalty, weakestLift, balancePenalty)
+
+  const secondaryPercentile =
+    experience === 'Advanced' || liftPercentiles.length === 0
+      ? undefined
+      : (() => {
+          const parts = liftPercentiles
+            .map((lp) => lp.projectedNextTierPercentile)
+            .filter((n): n is number => typeof n === 'number')
+          if (parts.length === 0) return undefined
+          const avg = parts.reduce((a, b) => a + b, 0) / parts.length
+          const standardsLabel =
+            experience === 'Beginner' ? 'INTERMEDIATE STANDARDS' : 'ADVANCED STANDARDS'
+          return { percentile: Math.round(avg), standardsLabel }
+        })()
 
   return {
     oneRMs,
@@ -1247,6 +1268,7 @@ export function runDiagnostic(
     confidence,
     heroScore,
     liftPercentiles,
+    secondaryPercentile,
   }
 }
 

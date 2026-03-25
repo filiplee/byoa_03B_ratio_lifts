@@ -155,7 +155,7 @@ function generateFlags(ratios) {
   if (deadliftToBench) {
     const v = deadliftToBench.value;
     let id, message;
-    if (v < 1.3) { id = 'deadlift_lagging_bench'; message = 'Deadlift lagging relative to bench — increase posterior-chain volume (aim ~6–10 hard sets/week of hinge + hamstring work for 4–6 weeks).'; }
+    if (v < 1.3) { id = 'deadlift_lagging_bench'; message = 'Deadlift lagging relative to bench — increase posterior-chain volume (aim ~6–10 hard sets/week of hinge + hamstring work for 6 weeks).'; }
     else if (v > 1.7) { id = 'bench_lagging_deadlift'; message = 'Bench lagging relative to deadlift — consider horizontal push work.'; }
     else { id = 'typical_deadlift_bench'; message = 'Deadlift : Bench within typical range.'; }
     flags.push({ id, label: 'Deadlift : Bench', value: v, message });

@@ -1,14 +1,10 @@
 /**
  * Analytics events for form start, form complete, and PDF export.
  * Wire to PostHog, GA4, or other provider via environment.
+ * (Coach-phase events such as load/save athlete are reserved for a later release.)
  */
 
-type EventName =
-  | 'form_start'
-  | 'form_complete'
-  | 'pdf_export'
-  | 'coach_load_athlete'
-  | 'coach_save_athlete'
+type EventName = 'form_start' | 'form_complete' | 'pdf_export'
 
 export function trackEvent(event: EventName, properties?: Record<string, unknown>) {
   if (typeof window === 'undefined') return

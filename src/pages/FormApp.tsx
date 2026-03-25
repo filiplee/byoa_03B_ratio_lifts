@@ -3,15 +3,25 @@ import { Link } from 'react-router-dom'
 import { Header } from '../components/Header'
 import { LiftCard } from '../components/LiftCard'
 import { ResultCard } from '../components/ResultCard'
-import type { FormState, LiftInput, Units, DiagnosticResult } from '../types'
+import type { FormState, Experience, LiftInput, Units, DiagnosticResult } from '../types'
 import { defaultFormState } from '../defaults'
 import { runDiagnostic } from '../calculations'
 import { trackEvent } from '../analytics'
 import { displayToKg, kgToDisplay } from '../units'
 import { Seo } from '../components/Seo'
+import { SecondarySection } from '../components/SecondarySection'
 
-const EXPERIENCE_OPTIONS: FormState['experience'][] = ['Beginner', 'Intermediate', 'Advanced']
+const STRENGTH_LEVEL_CHOICES: { value: Experience; hint: string }[] = [
+  { value: 'Beginner', hint: '0–6 months' },
+  { value: 'Intermediate', hint: '6 months–2 years' },
+  { value: 'Advanced', hint: '2+ years' },
+]
 const FREQUENCY_OPTIONS: FormState['training_frequency'][] = ['1-2', '3-4', '5+']
+const GENDER_OPTIONS: { value: FormState['gender']; label: string }[] = [
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+  { value: 'prefer_not_to_say', label: 'Prefer not to say' },
+]
 
 function loadPersistedUnits(): Units {
   try {
@@ -53,7 +63,7 @@ type SharedPayloadV1 = {
   units: Units
   bodyweight?: number
   gender?: FormState['gender']
-  experience: FormState['experience']
+  experience: Experience
   training_frequency: FormState['training_frequency']
   primary_goal: FormState['primary_goal']
   equipment: string[]
@@ -82,16 +92,13 @@ function buildFormFromSharePayload(payload: SharedPayloadV1): FormState {
     units: payload.units,
     bodyweight: payload.bodyweight,
     gender: payload.gender ?? 'prefer_not_to_say',
-    experience: payload.experience,
+    experience: payload.experience ?? 'Intermediate',
     training_frequency: payload.training_frequency,
     primary_goal: payload.primary_goal,
     lifts: payload.lifts,
     equipment: payload.equipment,
     injury: payload.injury,
     injury_notes: payload.injury_notes,
-    coach_mode: false,
-    athlete_name: undefined,
-    coach_name: undefined,
   }
 }
 
@@ -138,6 +145,21 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
     })
   }, [])
 
+  const handleRetest = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    setResult(null)
+    setForm({ ...defaultFormState, units: loadPersistedUnits() })
+    try {
+      const url = new URL(window.location.href)
+      if (url.searchParams.has(SHARE_PARAM)) {
+        url.searchParams.delete(SHARE_PARAM)
+        window.history.replaceState({}, '', url.toString())
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
   const handleSaveScenario = useCallback(async () => {
     if (!result) return
     const payload: SharedPayloadV1 = {
@@ -167,6 +189,7 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
 
   const handleGenerate = () => {
     if (isGenerating) return
+    if (form.experience == null) return
     if (typeof form.bodyweight !== 'number' || form.bodyweight <= 0) return
     const hasEnoughLiftsNow = form.lifts.some(
       (l) =>
@@ -220,9 +243,8 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
         l.reps <= 20),
   )
   const hasBodyweight = typeof form.bodyweight === 'number' && form.bodyweight > 0
-  const canGenerate = hasBodyweight && hasEnoughLifts
-
-  const GOALS: FormState['primary_goal'][] = ['Strength', 'Hypertrophy', 'Power', 'Rehab']
+  const hasExperience = form.experience != null
+  const canGenerate = hasBodyweight && hasEnoughLifts && hasExperience
 
   return (
     <>
@@ -254,10 +276,45 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
               Weak Link
             </span>
           </h1>
-          <p className="mt-3 text-[#a8a8a8] text-base sm:text-lg">
-            Enter your lifts. Get your diagnosis. Know exactly what to fix.
+          <p className="mt-3 text-lg font-normal text-[#a8a8a8] sm:text-xl">
+            {"You're not training wrong. You're training blind."}
+          </p>
+          <p className="mt-2 text-base font-normal text-[#a8a8a8] sm:text-lg">
+            Enter your numbers below — takes under 60 seconds.
           </p>
         </header>
+
+        {/* Strength level — required first (sets percentile baseline) */}
+        <div className="mb-8 rounded-none border border-[#2a2a2a] bg-[#1c1c1c] p-5">
+          <p className="text-xs font-medium uppercase tracking-wide text-[#a8a8a8]">Strength level</p>
+          <p className="mt-1 text-sm font-medium text-[#e8e5df]">How long have you been training?</p>
+          <p className="mt-1 text-[11px] text-[#555]">This determines your percentile baseline.</p>
+          <div className="mt-4 space-y-3" role="radiogroup" aria-label="Strength level">
+            {STRENGTH_LEVEL_CHOICES.map(({ value, hint }) => (
+              <label
+                key={value}
+                className={`flex cursor-pointer items-start gap-3 rounded-none border px-4 py-3 text-left transition-colors ${
+                  form.experience === value
+                    ? 'border-[#5eead4] bg-[#0f1f1c]'
+                    : 'border-[#2a2a2a] bg-[#111111] hover:border-[#3a3a3a]'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="strength-level"
+                  value={value}
+                  checked={form.experience === value}
+                  onChange={() => updateForm({ experience: value })}
+                  className="mt-1 h-4 w-4 border-[#2a2a2a] bg-[#1c1c1c] text-[#5eead4] focus:ring-[#5eead4]"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-[#f5f2ec]">{value}</span>
+                  <span className="block text-xs text-[#888]">({hint})</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
 
         {/* Bodyweight (required) */}
         <div className="mb-8">
@@ -281,7 +338,33 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
             }
             className="w-full rounded-none border border-[#2a2a2a] bg-[#1c1c1c] px-4 py-3 font-light text-[#f5f2ec] placeholder:text-[#555] focus:border-[#e8c547] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/30"
           />
-          <p className="mt-1.5 text-[11px] text-[#555]">Unlocks your strength percentile and full radar breakdown.</p>
+          <p className="mt-1.5 text-[11px] text-[#555]">Required for experience-adjusted strength percentiles.</p>
+        </div>
+
+        {/* Gender — used for van den Hoek / Kilgore reference tables */}
+        <div className="mb-8">
+          <p className="mb-2 text-xs font-medium text-[#a8a8a8]">Gender</p>
+          <div className="flex flex-wrap gap-4">
+            {GENDER_OPTIONS.map(({ value, label }) => (
+              <label
+                key={value}
+                className="flex cursor-pointer items-center gap-2 text-sm font-medium text-[#a8a8a8]"
+              >
+                <input
+                  type="radio"
+                  name="gender"
+                  value={value}
+                  checked={form.gender === value}
+                  onChange={() => updateForm({ gender: value })}
+                  className="h-4 w-4 border-[#2a2a2a] bg-[#1c1c1c] text-[#e8c547] focus:ring-[#e8c547]"
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] text-[#555]">
+            Used to place you in the right weight-class norms. “Prefer not to say” uses male reference curves.
+          </p>
         </div>
 
         {/* Lifts (2x2 on tablet+) */}
@@ -293,48 +376,13 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
               units={form.units}
               bodyweight={form.bodyweight}
               onChange={(l) => setLift(i, l)}
-              hint={i === 0 ? 'Enter best working set, not warmup.' : undefined}
+              hint="Enter best working set, not warmup."
             />
           ))}
         </div>
 
-        {/* Primary goal (inline row) */}
         <div className="mb-8">
-          <p className="mb-2 text-xs font-medium text-[#a8a8a8]">Primary Goal</p>
-          <div className="flex flex-wrap gap-2">
-            {GOALS.map((g) => (
-              <button
-                key={g}
-                type="button"
-                onClick={() => updateForm({ primary_goal: g })}
-                className={`rounded-none px-3 py-2 text-sm font-medium ${
-                  form.primary_goal === g
-                    ? 'bg-[#e8c547] text-[#0a0a0a]'
-                    : 'bg-[#111111] text-[#a8a8a8] border border-[#2a2a2a] hover:bg-[#2e2e2e]'
-                }`}
-              >
-                {g}
-              </button>
-            ))}
-          </div>
-          <p className="mt-2 text-[11px] text-[#555]">
-            Your goal affects the ideal ratios and accessory recommendations.
-          </p>
-        </div>
-
-        <div className="mb-8">
-          <label className="mb-1 block text-xs font-medium text-[#a8a8a8]">Experience Level</label>
-          <select
-            value={form.experience}
-            onChange={(e) => updateForm({ experience: e.target.value as FormState['experience'] })}
-            className="w-full rounded-none border border-[#2a2a2a] bg-[#1c1c1c] px-4 py-3 font-light text-[#f5f2ec] focus:border-[#e8c547] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/30"
-          >
-            {EXPERIENCE_OPTIONS.map((e) => (
-              <option key={e} value={e}>
-                {e}
-              </option>
-            ))}
-          </select>
+          <SecondarySection form={form} onChange={updateForm} />
         </div>
 
         <div className="mb-8">
@@ -359,30 +407,6 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
           </div>
         </div>
 
-        {/* Equipment available */}
-        <div className="mb-8">
-          <label className="mb-2 block text-xs font-medium text-[#a8a8a8]">Equipment Available</label>
-          <div className="flex flex-wrap gap-2">
-            {['Barbell', 'Dumbbells', 'Kettlebell', 'Bands', 'Cable', 'Bodyweight'].map((e) => (
-              <label
-                key={e}
-                className="flex items-center gap-1.5 rounded-none bg-[#111111] border border-[#2a2a2a] px-3 py-2 text-sm text-[#a8a8a8]"
-              >
-                <input
-                  type="checkbox"
-                  checked={form.equipment.includes(e)}
-                  onChange={() => {
-                    const next = form.equipment.includes(e) ? form.equipment.filter((x) => x !== e) : [...form.equipment, e]
-                    updateForm({ equipment: next })
-                  }}
-                  className="rounded-none border-[#2a2a2a] bg-[#111111] text-[#e8c547] focus:ring-[#e8c547]/50"
-                />
-                {e}
-              </label>
-            ))}
-          </div>
-        </div>
-
         {/* Generate */}
         {!result && (
           <div className="mb-8">
@@ -394,6 +418,9 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
             >
               {isGenerating ? 'Analyzing…' : 'Find my weak link'}
             </button>
+            {!hasExperience && hasEnoughLifts && hasBodyweight && (
+              <p className="mt-2 text-center text-xs text-[#e8c547]">Select your strength level above to continue.</p>
+            )}
             <p className="mt-2 text-center text-xs text-[#555]">
               For information only — not medical advice. Use your head.
             </p>
@@ -412,8 +439,8 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
             <ResultCard
               form={form}
               result={result}
-              coachMode={!!form.coach_mode}
               onSaveScenario={handleSaveScenario}
+              onRetest={handleRetest}
             />
           </div>
         )}
@@ -421,7 +448,7 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
 
       {/* Footer: matches /why design reference */}
       <footer className="flex items-center justify-between border-t border-[#2a2a2a] bg-[#0a0a0a] px-10 py-8 text-[0.75rem] tracking-[0.06em] text-[#555]">
-        <span>© 2025 Ratio Lifts. All rights reserved.</span>
+        <span>© {new Date().getFullYear()} Ratio Lifts. All rights reserved.</span>
         <nav className="flex gap-8">
           <Link to="/privacy" className="text-[#555] no-underline hover:text-[#e8c547]">
             Privacy
