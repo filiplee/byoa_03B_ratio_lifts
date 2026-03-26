@@ -17,10 +17,8 @@ export const defaultFormState: FormState = {
   bodyweight: undefined,
   gender: 'prefer_not_to_say',
   experience: null,
-  training_frequency: '3-4',
   lifts: defaultLifts(),
   primary_goal: 'Strength',
   injury: false,
   injury_notes: undefined,
-  equipment: [],
 }

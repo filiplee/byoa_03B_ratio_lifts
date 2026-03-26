@@ -184,7 +184,6 @@ describe('runDiagnostic (sample input)', () => {
       gender: 'prefer_not_to_say',
       experience: 'Intermediate',
       injury: false,
-      training_frequency: '3-4',
     })
     expect(result.oneRMs).toHaveLength(4)
     expect(result.oneRMs.find((r) => r.id === 'squat')?.oneRM).toBe(132)
@@ -200,7 +199,6 @@ describe('runDiagnostic (sample input)', () => {
       gender: 'prefer_not_to_say',
       experience: 'Intermediate',
       injury: false,
-      training_frequency: '3-4',
     })
     expect(result.flags.some((f) => f.id === 'deadlift_dominant')).toBe(true)
     expect(result.oneLineDiagnosis).toContain('Deadlift dominant')
@@ -215,7 +213,6 @@ describe('runDiagnostic (sample input)', () => {
       gender: 'male',
       experience: 'Intermediate',
       injury: false,
-      training_frequency: '3-4',
     })
     expect(result.accessories).toHaveLength(0)
   })
@@ -230,7 +227,6 @@ describe('runDiagnostic (sample input)', () => {
       gender: 'male',
       experience: 'Intermediate',
       injury: false,
-      training_frequency: '3-4',
     })
     expect(result.flags.every((f) => f.id.startsWith('typical_'))).toBe(true)
     expect(result.accessories).toHaveLength(0)
@@ -250,7 +246,6 @@ describe('runDiagnostic (sample input)', () => {
       gender: 'prefer_not_to_say',
       experience: 'Intermediate',
       injury: false,
-      training_frequency: '3-4',
     })
     expect(result.flags.some((f) => f.id === 'press_strong')).toBe(true)
     expect(result.flags.some((f) => f.id === 'deadlift_lagging_bench')).toBe(true)
@@ -274,7 +269,6 @@ describe('runDiagnostic guards', () => {
         gender: 'male',
         experience: null,
         injury: false,
-        training_frequency: '3-4',
       }),
     ).toThrow(/experience/)
   })
@@ -303,7 +297,6 @@ describe('hero score (van den Hoek + Kilgore)', () => {
       gender: 'male',
       experience: 'Intermediate',
       injury: false,
-      training_frequency: '3-4',
     })
 
     expect(['Getting Started', 'Developing']).toContain(result.heroScore.band)
@@ -326,7 +319,6 @@ describe('hero score (van den Hoek + Kilgore)', () => {
       gender: 'male',
       experience: 'Advanced',
       injury: false,
-      training_frequency: '3-4',
     })
 
     expect(result.heroScore.balancePenalty).toBeLessThanOrEqual(2)

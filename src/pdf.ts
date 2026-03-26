@@ -370,9 +370,10 @@ export function generateReportPDF(
   setMuted(doc)
   const metaParts = [
     `Strength level: ${form.experience ?? '—'}`,
-    `Frequency: ${form.training_frequency}/wk`,
     `Goal: ${form.primary_goal}`,
     form.bodyweight != null ? `BW: ${formatKg(form.bodyweight, form.units)} ${form.units}` : null,
+    // Training frequency is no longer user-selectable in the form; PDF keeps the old default.
+    'Frequency: 3-4/wk',
   ].filter(Boolean) as string[]
   doc.text(metaParts.join('  ·  '), MARGIN, y)
   y += LINE_H + 2

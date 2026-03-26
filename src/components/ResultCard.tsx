@@ -18,7 +18,6 @@ import {
   FLAG_IMBALANCE_CALLOUT,
   IDEAL_RATIOS,
   getIdealRangeForGoal,
-  getHeadlineDiagnosis,
   getPercentileBand,
   getPlainEnglishForRatio,
 } from '../calculations'
@@ -214,11 +213,8 @@ export function ResultCard({ form, result, onSaveScenario, onRetest }: ResultCar
           ? 'Fix your weak link: 2 accessories'
           : 'Fix your weak link: 3 accessories'
   const recommendationFooterText =
-    form.training_frequency === '1-2'
-      ? 'Add these to the end of your existing sessions. Come back in about 6 weeks and retest — most people see meaningful ratio shifts in that window.'
-      : form.training_frequency === '3-4'
-        ? 'Add these to the end of your next 3 sessions. Come back in about 6 weeks and retest — most people see meaningful ratio shifts in that window.'
-        : 'Schedule one dedicated corrective session, then come back in about 6 weeks and retest — most people see meaningful ratio shifts in that window.'
+    // training frequency is no longer user-selectable; keep prior MVP default messaging.
+    'Add these to the end of your next 3 sessions. Come back in about 6 weeks and retest — most people see meaningful ratio shifts in that window.'
 
   const heroScoreValue = result.heroScore.displayedScore
   const heroWeakestLift = result.heroScore.weakestLift
@@ -343,10 +339,6 @@ export function ResultCard({ form, result, onSaveScenario, onRetest }: ResultCar
   }
 
   const weakLinkLabel = primaryFlag?.label ?? result.oneRMs[0]?.name ?? 'Your profile'
-  const weakLinkExplanationOneLine = (() => {
-    const diag = getHeadlineDiagnosis(result.oneRMs, result.flags, form.units)
-    return diag.split(' Bringing it in line')[0] // keep it one line / avoid impact add-ons
-  })()
 
   const currentWeakLift =
     penaltyPoints > 0 && heroWeakestLift
@@ -364,12 +356,29 @@ export function ResultCard({ form, result, onSaveScenario, onRetest }: ResultCar
           return IDEAL_RATIOS[weakLinkRatioRow.id]?.ideal ?? weakLinkRatioRow.value
         })()
       : null
+
+  const weakIdealRange = weakLinkRatioRow
+    ? getIdealRangeForGoal(weakLinkRatioRow.id, form.primary_goal)
+    : null
+
+  const weakInTargetRange =
+    weakLinkRatioRow != null && weakIdealRange != null
+      ? weakLinkRatioRow.value >= weakIdealRange.min && weakLinkRatioRow.value <= weakIdealRange.max
+      : false
+
+  const shouldShowWeakLinkPanel =
+    result.oneRMs.length >= 2 && primaryFlag != null && weakLinkRatioRow != null && weakIdealMid != null && weakIdealRange != null && !weakInTargetRange
+
+  const weakLiftParts = weakLinkRatioRow?.label
+    ? weakLinkRatioRow.label.split(':').map((s) => s.trim())
+    : null
+  const weakLiftA = weakLiftParts?.[0] ?? ''
+  const weakLiftB = weakLiftParts?.[1] ?? ''
+
   const weakLinkMaxScale =
     weakLinkRatioRow != null && weakIdealMid != null
       ? Math.max(weakLinkRatioRow.value, weakIdealMid) * 1.15
       : 1
-  const canShowWeakLinkBars = weakLinkRatioRow != null && weakIdealMid != null && result.oneRMs.length >= 2
-  const climbTargetPct = rawPercentile
 
   return (
     <div id="results-top" className="rounded-none border border-[#2a2a2a] bg-[#1c1c1c] p-6">
@@ -439,82 +448,114 @@ export function ResultCard({ form, result, onSaveScenario, onRetest }: ResultCar
       {/* Section 3: Weak link diagnosis */}
       <section className="mb-8 border-b border-[#2a2a2a] pb-8">
         <div className="rounded-none border border-[#2a2a2a] bg-[#111111] p-6">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-[#b0b0b0]">Your weak link</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-[#b0b0b0]">YOUR WEAK LINK</h2>
           {result.oneRMs.length < 2 && (
-            <p className="mt-3 text-sm text-[#b0b0b0]">
-              Add at least two main lifts to unlock ratio-based weak link analysis.
-            </p>
+            <p className="mt-3 text-sm text-[#b0b0b0]">Add at least two main lifts to unlock ratio-based weak link analysis.</p>
           )}
-          {canShowWeakLinkBars && weakLinkRatioRow != null && weakIdealMid != null && (
-            <>
-              <p className="mt-3 text-lg font-medium text-[#5eead4]">
-                {weakLinkRatioRow.label}{' '}
-                <span className="text-[#f5f2ec]">= {weakLinkRatioRow.value.toFixed(2)}×</span>
-              </p>
-              <p className="mt-1 text-sm text-[#e8e5df]">
-                Target for your goal ≈ {weakIdealMid.toFixed(2)}×
-              </p>
-              <div className="mt-5 space-y-3">
-                <div>
-                  <div className="mb-1 flex justify-between text-[11px] text-[#b0b0b0]">
-                    <span>Your ratio</span>
-                    <span className="font-medium text-[#fb923c]">{weakLinkRatioRow.value.toFixed(2)}×</span>
-                  </div>
-                  <div className="h-2.5 w-full bg-[#2a2a2a]">
-                    <div
-                      className="h-full bg-[#fb923c]"
-                      style={{
-                        width: `${Math.min(100, (weakLinkRatioRow.value / weakLinkMaxScale) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <div className="mb-1 flex justify-between text-[11px] text-[#b0b0b0]">
-                    <span>Target</span>
-                    <span className="font-medium text-[#4ade80]">{weakIdealMid.toFixed(2)}×</span>
-                  </div>
-                  <div className="h-2.5 w-full bg-[#2a2a2a]">
-                    <div
-                      className="h-full bg-[#4ade80]"
-                      style={{
-                        width: `${Math.min(100, (weakIdealMid / weakLinkMaxScale) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-              {penaltyPoints > 0 && (
-                <p className="mt-4 text-sm text-[#e8e5df]">
-                  Gap across lifts is costing you about{' '}
-                  <span className="font-semibold text-[#e8c547]">{penaltyPoints}</span> balance points versus an even
-                  profile.
-                </p>
-              )}
-              <p className="mt-3 text-sm text-[#b0b0b0]">
-                Fix it and climb toward {climbTargetPct}
-                {ordinalSuffix(climbTargetPct)} percentile on your current standard.
-              </p>
-              <p className="mt-2 text-sm font-light text-[#e8e5df]">{weakLinkExplanationOneLine}</p>
-            </>
-          )}
-          {result.oneRMs.length >= 2 && primaryFlag == null && (
+
+          {result.oneRMs.length >= 2 && !shouldShowWeakLinkPanel && (
             <p className="mt-3 text-sm text-[#b0b0b0]">Your main ratios look balanced — keep building all patterns.</p>
           )}
-          {result.oneRMs.length >= 2 && primaryFlag != null && !canShowWeakLinkBars && (
+
+          {shouldShowWeakLinkPanel && weakLinkRatioRow != null && weakIdealMid != null && weakIdealRange != null && (
             <>
-              <p className="mt-3 text-lg font-medium text-[#e8c547]">{weakLinkLabel}</p>
-              <p className="mt-2 text-sm text-[#e8e5df]">{weakLinkExplanationOneLine}</p>
+              {(() => {
+                const actualRatio = weakLinkRatioRow.value
+                const targetRatio = weakIdealMid
+                const gapPct = targetRatio > 0 ? Math.abs(actualRatio - targetRatio) / targetRatio : 0
+                const gapColorClass = gapPct < 0.1 ? 'bg-[#fb923c]' : 'bg-[#e07a5f]' // amber vs red
+
+                const maxScale = weakLinkMaxScale > 0 ? weakLinkMaxScale : 1
+                const clampPct = (x: number) => Math.max(0, Math.min(100, x))
+
+                const targetPct = clampPct((targetRatio / maxScale) * 100)
+                const actualPct = clampPct((actualRatio / maxScale) * 100)
+                const gapStartPct = Math.min(targetPct, actualPct)
+                const gapWidthPct = Math.abs(targetPct - actualPct)
+
+                const liftALower = weakLiftA.toLowerCase()
+                const liftBLower = weakLiftB.toLowerCase()
+                const liftAUpper = weakLiftA.toUpperCase()
+                const liftBUpper = weakLiftB.toUpperCase()
+
+                const cueForLaggingLift = (liftLower: string): string => {
+                  if (liftLower.includes('bench')) return 'horizontal push and triceps'
+                  if (liftLower.includes('press')) return 'shoulder stability and pressing volume'
+                  if (liftLower.includes('squat')) return 'quad and anterior-chain work'
+                  if (liftLower.includes('deadlift')) return 'hinge and hamstring volume'
+                  return 'your weakest accessory focus'
+                }
+
+                const isAboveTarget = actualRatio > targetRatio
+                const outpacing = targetRatio > 0 ? actualRatio / targetRatio : 1
+
+                const header = isAboveTarget
+                  ? `YOUR ${liftAUpper} IS OVERLOADED BY YOUR ${liftBUpper}`
+                  : `YOUR ${liftAUpper} IS LAGGING BEHIND YOUR ${liftBUpper}`
+
+                const cue = isAboveTarget ? cueForLaggingLift(liftBLower) : cueForLaggingLift(liftALower)
+                const sentence = isAboveTarget
+                  ? `Your ${liftALower} is outpacing your ${liftBLower} by ${outpacing.toFixed(2)}×. Focus on ${cue} to bring them into balance.`
+                  : `Your ${liftALower} is lagging behind your ${liftBLower}. Focus on ${cue} to close the gap.`
+
+                return (
+                  <>
+                    <p className="mt-3 text-lg font-bold leading-tight text-[#5eead4]">{header}</p>
+
+                    <div className="mt-4">
+                      <div className="relative h-2.5 w-full bg-[#2a2a2a]">
+                        {/* Target zone (0 → target) */}
+                        <div className="absolute left-0 top-0 h-full bg-[#4ade80]" style={{ width: `${targetPct}%` }} />
+
+                        {/* Highlight the gap between target and your actual */}
+                        <div
+                          className={`absolute top-0 h-full ${gapColorClass}`}
+                          style={{ left: `${gapStartPct}%`, width: `${gapWidthPct}%` }}
+                        />
+
+                        {/* Your ratio marker */}
+                        <div
+                          className="absolute top-0 h-full w-[2px] bg-[#f5f2ec]"
+                          style={{ left: `${actualPct}%`, transform: 'translateX(-1px)' }}
+                        />
+                        <div
+                          className="absolute top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-[#f5f2ec]"
+                          style={{ left: `${actualPct}%`, transform: 'translate(-50%,-50%)' }}
+                        />
+                      </div>
+
+                      {/* Labels under the bar */}
+                      <div className="relative mt-2 h-6">
+                        <span className="absolute left-0 text-[11px] text-[#b0b0b0]">0</span>
+                        <span
+                          className="absolute text-[11px] font-medium text-[#b0b0b0]"
+                          style={{ left: `${targetPct}%`, transform: 'translateX(-50%)' }}
+                        >
+                          Target zone
+                        </span>
+                        <span
+                          className="absolute text-[11px] font-semibold text-[#e8e5df]"
+                          style={{ left: `${actualPct}%`, transform: 'translateX(-50%)' }}
+                        >
+                          {actualRatio.toFixed(2)}×
+                        </span>
+                        <span className="absolute right-0 text-[11px] text-[#b0b0b0]">100</span>
+                      </div>
+
+                      <p className="mt-1 text-[11px] text-[#888]">
+                        Actual ratio: <span className="text-[#e8e5df] font-semibold">{actualRatio.toFixed(2)}×</span> · Target:{' '}
+                        <span className="text-[#b0f7d3] font-semibold">{targetRatio.toFixed(2)}×</span>
+                      </p>
+                    </div>
+
+                    <p className="mt-3 text-sm font-light text-[#e8e5df]">{sentence}</p>
+                  </>
+                )
+              })()}
             </>
           )}
         </div>
       </section>
-
-      <p className="mb-8 rounded-none border border-dashed border-[#3a3a3a] bg-[#111111] px-4 py-3 text-xs leading-relaxed text-[#888]">
-        <span className="font-medium text-[#b0b0b0]">Coaches:</span> A dedicated workspace (branded reports, coach
-        notes, athlete roster) will be added in a later phase. For now, PDF export and shareable links work the same for
-        everyone.
-      </p>
 
       <section className="mb-8 rounded-none border border-[#2a2a2a] bg-[#111111] p-4">
         <h3 className="text-xs font-medium uppercase tracking-wide text-[#888]">About these percentiles</h3>
@@ -725,6 +766,45 @@ export function ResultCard({ form, result, onSaveScenario, onRetest }: ResultCar
                     </span>
                   </div>
                   <p className="mt-0.5 text-[11px] text-[#888]">{lp.band}</p>
+                  {(() => {
+                    const pct = Math.max(0, Math.min(100, lp.percentile))
+                    const fillClass =
+                      pct <= 20
+                        ? 'bg-[#e07a5f]' // red
+                        : pct <= 40
+                          ? 'bg-[#fb923c]' // amber
+                          : pct <= 60
+                            ? 'bg-[#5eead4]' // teal/blue
+                            : pct <= 75
+                              ? 'bg-[#4ade80]' // green
+                              : 'bg-[#22c55e]' // bright green
+
+                    return (
+                      <div className="mt-2">
+                        <div className="relative h-2.5 w-full bg-[#2a2a2a]">
+                          <div className={`absolute left-0 top-0 h-full ${fillClass}`} style={{ width: `${pct}%` }} />
+                          <div
+                            className="absolute top-0 bottom-0 w-[2px] bg-[#e8e5df] z-10"
+                            style={{ left: '50%', transform: 'translateX(-1px)' }}
+                          />
+                        </div>
+
+                        <div className="relative mt-1">
+                          <div className="flex justify-between text-[10px] text-[#888]">
+                            <span>0</span>
+                            <span>50</span>
+                            <span>100</span>
+                          </div>
+                          <span
+                            className="absolute left-1/2 -top-5 -translate-x-1/2 text-[10px] text-[#b0b0b0]"
+                            aria-hidden="true"
+                          >
+                            median
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })()}
                   {lp.id === 'press' && (
                     <p className="mt-1 text-[10px] text-[#888]">
                       <span className="text-[#5eead4]">Standards:</span> Kilgore (2023)
@@ -784,11 +864,6 @@ export function ResultCard({ form, result, onSaveScenario, onRetest }: ResultCar
             )}
             {hasAccessoryPrescription && (
               <>
-                {form.equipment.length === 0 && (
-                  <p className="mb-3 text-xs text-[#b0b0b0]">
-                    No equipment selected — showing recommendations for all equipment types.
-                  </p>
-                )}
                 {commonForImbalance && (
                   <p className="mb-3 text-xs font-medium text-[#e8c547]">Addresses: {commonForImbalance}</p>
                 )}

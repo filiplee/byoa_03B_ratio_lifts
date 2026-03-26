@@ -1,6 +1,5 @@
 export type Units = 'kg' | 'lb'
 export type Experience = 'Beginner' | 'Intermediate' | 'Advanced'
-export type TrainingFrequency = '1-2' | '3-4' | '5+'
 export type PrimaryGoal = 'Strength' | 'Hypertrophy' | 'Power' | 'Rehab'
 export type LiftInputMethod = 'weight_reps' | 'one_rm'
 export type Gender = 'male' | 'female' | 'prefer_not_to_say'
@@ -30,12 +29,10 @@ export interface FormState {
   gender: Gender
   /** Required to generate a report; null until the user selects a strength level. */
   experience: Experience | null
-  training_frequency: TrainingFrequency
   lifts: LiftInput[]
   primary_goal: PrimaryGoal
   injury: boolean
   injury_notes?: string
-  equipment: string[]
 }
 
 /**

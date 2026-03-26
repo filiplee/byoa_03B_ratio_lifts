@@ -2,7 +2,6 @@ import { useState } from 'react'
 import type { FormState, PrimaryGoal } from '../types'
 
 const GOALS: PrimaryGoal[] = ['Strength', 'Hypertrophy', 'Power', 'Rehab']
-const EQUIPMENT_OPTIONS = ['Barbell', 'Dumbbells', 'Kettlebell', 'Bands', 'Cable', 'Bodyweight']
 
 interface SecondarySectionProps {
   form: FormState
@@ -12,13 +11,6 @@ interface SecondarySectionProps {
 export function SecondarySection({ form, onChange }: SecondarySectionProps) {
   const [open, setOpen] = useState(true)
 
-  const toggleEquipment = (item: string) => {
-    const next = form.equipment.includes(item)
-      ? form.equipment.filter((e) => e !== item)
-      : [...form.equipment, item]
-    onChange({ equipment: next })
-  }
-
   return (
     <div className="rounded-none border border-[#2a2a2a] bg-[#1c1c1c]">
       <button
@@ -26,7 +18,7 @@ export function SecondarySection({ form, onChange }: SecondarySectionProps) {
         onClick={() => setOpen(!open)}
         className="flex w-full items-center justify-between px-5 py-4 text-left text-sm font-medium text-[#f5f2ec]"
       >
-        <span>Primary goal, injury & equipment</span>
+        <span>Primary goal & injury</span>
         <span className="text-[#555]">{open ? '−' : '+'}</span>
       </button>
       {open && (
@@ -57,8 +49,13 @@ export function SecondarySection({ form, onChange }: SecondarySectionProps) {
                 onChange={(e) => onChange({ injury: e.target.checked })}
                 className="rounded-none border-[#2a2a2a] bg-[#111111] text-[#e8c547] focus:ring-[#e8c547]/50"
               />
-              <span className="text-sm text-[#a8a8a8]">I have an injury or limitation</span>
+              <span className="text-sm font-medium text-[#a8a8a8]">Any injuries to work around?</span>
             </label>
+            <p className="text-[11px] leading-snug text-[#555]">
+              <span className="font-light italic">
+                Affects your exercise prescription — we'll avoid movements that aggravate your injury
+              </span>
+            </p>
             {form.injury && (
               <input
                 type="text"
@@ -68,22 +65,6 @@ export function SecondarySection({ form, onChange }: SecondarySectionProps) {
                 className="mt-2 w-full rounded-none border border-[#2a2a2a] bg-[#111111] px-3 py-2 text-sm font-light text-[#f5f2ec] placeholder:text-[#555] focus:border-[#e8c547] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/30"
               />
             )}
-          </div>
-          <div>
-            <label className="mb-2 block text-xs font-medium text-[#a8a8a8]">Equipment available</label>
-            <div className="flex flex-wrap gap-2">
-              {EQUIPMENT_OPTIONS.map((e) => (
-                <label key={e} className="flex items-center gap-1.5 rounded-none bg-[#111111] border border-[#2a2a2a] px-3 py-2 text-sm text-[#a8a8a8]">
-                  <input
-                    type="checkbox"
-                    checked={form.equipment.includes(e)}
-                    onChange={() => toggleEquipment(e)}
-                    className="rounded-none border-[#2a2a2a] bg-[#111111] text-[#e8c547] focus:ring-[#e8c547]/50"
-                  />
-                  {e}
-                </label>
-              ))}
-            </div>
           </div>
         </div>
       )}

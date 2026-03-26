@@ -1042,8 +1042,10 @@ function getAccessories(
   _injury: boolean,
   injuryNotes: string | undefined,
   oneRMs: Lift1RM[],
-  equipment: string[] | undefined,
-  training_frequency: FormState['training_frequency']
+  // User-selected equipment + training frequency are removed from the form.
+  // We keep accessory output consistent with the old default behaviour:
+  // - training frequency fixed to the prior default: "3-4"
+  // - no equipment filtering (i.e. recommendations work for all equipment)
 ): AccessoryExercise[] {
   // Accessories only when ratio diagnostics are possible (≥2 lifts) and at least one non-typical flag.
   if (oneRMs.length < 2) return []
@@ -1052,8 +1054,7 @@ function getAccessories(
   const flagged = flags.filter((f) => !f.id.startsWith('typical_'))
   const prioritised = getPrioritisedFlags(flagged)
 
-  const normalizeEquipmentTag = (s: string) => s.trim().toLowerCase()
-  const equipmentSet = new Set((equipment ?? []).map(normalizeEquipmentTag))
+  const equipmentSet = new Set<string>() // equipment filtering disabled (no user selections)
 
   // Exercise base-name -> equipment tags.
   // Unknown exercises are treated as compatible with all equipment.
@@ -1099,9 +1100,12 @@ function getAccessories(
     return requiredTags.some((tag) => equipmentSet.has(tag))
   }
 
-  const targetCount = training_frequency === '1-2' ? 2 : 3
-  const desiredSets =
-    training_frequency === '1-2' ? 2 : training_frequency === '5+' ? 4 : null
+  // training_frequency is no longer user-selectable in the form.
+  // Preserve the previous MVP default behaviour ("3-4/week"):
+  // - recommend 3 accessory exercises
+  // - keep original sets/reps (no adjustment)
+  const targetCount = 3
+  const desiredSets: number | null = null
 
   const adjustSetsReps = (a: AccessoryExercise): AccessoryExercise => {
     if (desiredSets == null) return a
@@ -1209,10 +1213,8 @@ export function runDiagnostic(
   lifts: LiftInput[],
   form: Pick<
     FormState,
-    'bodyweight' | 'experience' | 'gender' | 'injury' | 'injury_notes' | 'training_frequency'
-  > & {
-    equipment?: string[]
-  }
+    'bodyweight' | 'experience' | 'gender' | 'injury' | 'injury_notes'
+  >
 ): DiagnosticResult {
   const experience = form.experience
   if (experience == null) {
@@ -1233,8 +1235,7 @@ export function runDiagnostic(
     form.injury,
     form.injury_notes,
     oneRMs,
-    form.equipment,
-    form.training_frequency
+    // equipment + training frequency intentionally removed from the form
   )
   const liftPercentiles = computeLiftPercentiles(oneRMs, form.bodyweight, form.gender, experience)
 

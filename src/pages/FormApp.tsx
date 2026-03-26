@@ -16,7 +16,6 @@ const STRENGTH_LEVEL_CHOICES: { value: Experience; hint: string }[] = [
   { value: 'Intermediate', hint: '6 months–2 years' },
   { value: 'Advanced', hint: '2+ years' },
 ]
-const FREQUENCY_OPTIONS: FormState['training_frequency'][] = ['1-2', '3-4', '5+']
 const GENDER_OPTIONS: { value: FormState['gender']; label: string }[] = [
   { value: 'male', label: 'Male' },
   { value: 'female', label: 'Female' },
@@ -64,9 +63,7 @@ type SharedPayloadV1 = {
   bodyweight?: number
   gender?: FormState['gender']
   experience: Experience
-  training_frequency: FormState['training_frequency']
   primary_goal: FormState['primary_goal']
-  equipment: string[]
   injury: boolean
   injury_notes?: string
   lifts: FormState['lifts']
@@ -93,10 +90,8 @@ function buildFormFromSharePayload(payload: SharedPayloadV1): FormState {
     bodyweight: payload.bodyweight,
     gender: payload.gender ?? 'prefer_not_to_say',
     experience: payload.experience ?? 'Intermediate',
-    training_frequency: payload.training_frequency,
     primary_goal: payload.primary_goal,
     lifts: payload.lifts,
-    equipment: payload.equipment,
     injury: payload.injury,
     injury_notes: payload.injury_notes,
   }
@@ -119,11 +114,14 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
       experience: nextForm.experience,
       injury: nextForm.injury,
       injury_notes: nextForm.injury_notes,
-      equipment: nextForm.equipment,
-      training_frequency: nextForm.training_frequency,
     })
   })
   const [isGenerating, setIsGenerating] = useState(false)
+  const [requiredFieldErrors, setRequiredFieldErrors] = useState<{
+    bodyweight?: string
+    lifts?: string
+    experience?: string
+  }>({})
 
   const updateForm = useCallback((patch: Partial<FormState>) => {
     setForm((prev) => ({ ...prev, ...patch }))
@@ -168,9 +166,7 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
       bodyweight: form.bodyweight,
       gender: form.gender,
       experience: form.experience ?? 'Intermediate',
-      training_frequency: form.training_frequency,
       primary_goal: form.primary_goal,
-      equipment: form.equipment,
       injury: form.injury,
       injury_notes: form.injury_notes,
       lifts: form.lifts,
@@ -189,9 +185,9 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
 
   const handleGenerate = () => {
     if (isGenerating) return
-    if (form.experience == null) return
-    if (typeof form.bodyweight !== 'number' || form.bodyweight <= 0) return
-    const hasEnoughLiftsNow = form.lifts.some(
+
+    const bodyweightOk = typeof form.bodyweight === 'number' && form.bodyweight > 0
+    const liftsOk = form.lifts.some(
       (l) =>
         (l.method === 'one_rm' && l.one_rm != null && l.one_rm > 0) ||
         (l.method === 'weight_reps' &&
@@ -201,7 +197,26 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
           l.reps >= 1 &&
           l.reps <= 20),
     )
-    if (!hasEnoughLiftsNow) return
+    const experienceOk = form.experience != null
+
+    if (!bodyweightOk || !liftsOk || !experienceOk) {
+      const nextErrors = {
+        bodyweight: !bodyweightOk ? 'This field is required' : undefined,
+        lifts: !liftsOk ? 'This field is required' : undefined,
+        experience: !experienceOk ? 'This field is required' : undefined,
+      }
+      setRequiredFieldErrors(nextErrors)
+
+      const firstMissingId = !bodyweightOk
+        ? 'bodyweight-field'
+        : !liftsOk
+          ? 'lifts-field'
+          : 'experience-field'
+      document.getElementById(firstMissingId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
+
+    setRequiredFieldErrors({})
     onRetestReportGenerated?.()
     setIsGenerating(true)
     trackEvent('form_complete')
@@ -212,8 +227,6 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
       experience: form.experience,
       injury: form.injury,
       injury_notes: form.injury_notes,
-      equipment: form.equipment,
-      training_frequency: form.training_frequency,
     })
     const elapsed = Date.now() - startedAt
     const remaining = Math.max(0, 300 - elapsed)
@@ -231,20 +244,6 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
     if (!result) return
     document.getElementById('results-top')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [result])
-
-  const hasEnoughLifts = form.lifts.some(
-    (l) =>
-      (l.method === 'one_rm' && l.one_rm != null && l.one_rm > 0) ||
-      (l.method === 'weight_reps' &&
-        l.weight != null &&
-        l.weight > 0 &&
-        l.reps != null &&
-        l.reps >= 1 &&
-        l.reps <= 20),
-  )
-  const hasBodyweight = typeof form.bodyweight === 'number' && form.bodyweight > 0
-  const hasExperience = form.experience != null
-  const canGenerate = hasBodyweight && hasEnoughLifts && hasExperience
 
   return (
     <>
@@ -285,7 +284,12 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
         </header>
 
         {/* Strength level — required first (sets percentile baseline) */}
-        <div className="mb-8 rounded-none border border-[#2a2a2a] bg-[#1c1c1c] p-5">
+        <div
+          id="experience-field"
+          className={`mb-8 rounded-none border bg-[#1c1c1c] p-5 ${
+            requiredFieldErrors.experience ? 'border-[#e07a5f]' : 'border-[#2a2a2a]'
+          }`}
+        >
           <p className="text-xs font-medium uppercase tracking-wide text-[#a8a8a8]">Strength level</p>
           <p className="mt-1 text-sm font-medium text-[#e8e5df]">How long have you been training?</p>
           <p className="mt-1 text-[11px] text-[#555]">This determines your percentile baseline.</p>
@@ -314,12 +318,15 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
               </label>
             ))}
           </div>
+          {requiredFieldErrors.experience && (
+            <p className="mt-2 text-[11px] text-[#e07a5f]">This field is required</p>
+          )}
         </div>
 
         {/* Bodyweight (required) */}
-        <div className="mb-8">
+        <div id="bodyweight-field" className="mb-8">
           <label htmlFor="bodyweight" className="mb-1 block text-xs font-medium text-[#a8a8a8]">
-            Body Weight
+            Bodyweight <span className="text-[#e07a5f]">*</span>
           </label>
           <input
             id="bodyweight"
@@ -336,9 +343,19 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
                   e.target.value === '' ? undefined : displayToKg(Number(e.target.value), form.units),
               })
             }
-            className="w-full rounded-none border border-[#2a2a2a] bg-[#1c1c1c] px-4 py-3 font-light text-[#f5f2ec] placeholder:text-[#555] focus:border-[#e8c547] focus:outline-none focus:ring-2 focus:ring-[#e8c547]/30"
+            aria-invalid={requiredFieldErrors.bodyweight ? 'true' : 'false'}
+            className={`w-full rounded-none border bg-[#1c1c1c] px-4 py-3 font-light text-[#f5f2ec] placeholder:text-[#555] focus:outline-none focus:ring-2 ${
+              requiredFieldErrors.bodyweight
+                ? 'border-[#e07a5f] focus:border-[#e07a5f] focus:ring-[#e07a5f]/30'
+                : 'border-[#2a2a2a] focus:border-[#e8c547] focus:ring-[#e8c547]/30'
+            }`}
           />
-          <p className="mt-1.5 text-[11px] text-[#555]">Required for experience-adjusted strength percentiles.</p>
+          <p className="mt-1.5 text-[11px] text-[#555]">
+            <span className="font-light italic">Required for percentile scoring</span>
+          </p>
+          {requiredFieldErrors.bodyweight && (
+            <p className="mt-1 text-[11px] text-[#e07a5f]">This field is required</p>
+          )}
         </div>
 
         {/* Gender — used for van den Hoek / Kilgore reference tables */}
@@ -368,7 +385,13 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
         </fieldset>
 
         {/* Lifts (2x2 on tablet+) */}
-        <div className="mb-8 grid grid-cols-1 gap-5 md:grid-cols-2">
+        <div
+          id="lifts-field"
+          className={`mb-8 rounded-none border bg-[#1c1c1c] p-5 ${
+            requiredFieldErrors.lifts ? 'border-[#e07a5f]' : 'border-[#2a2a2a]'
+          }`}
+        >
+          <div className={`grid grid-cols-1 gap-5 md:grid-cols-2`}>
           {form.lifts.slice(0, 4).map((lift, i) => (
             <LiftCard
               key={lift.id}
@@ -379,32 +402,14 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
               hint="Enter best working set, not warmup."
             />
           ))}
+          </div>
+          {requiredFieldErrors.lifts && (
+            <p className="mt-2 text-[11px] text-[#e07a5f]">This field is required</p>
+          )}
         </div>
 
         <div className="mb-8">
           <SecondarySection form={form} onChange={updateForm} />
-        </div>
-
-        <div className="mb-8">
-          <label className="mb-2 block text-xs font-medium text-[#a8a8a8]">
-            Training frequency (per week)
-          </label>
-          <div className="flex gap-2">
-            {FREQUENCY_OPTIONS.map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => updateForm({ training_frequency: f })}
-                className={`flex-1 rounded-none py-3 text-sm font-medium ${
-                  form.training_frequency === f
-                    ? 'bg-[#e8c547] text-[#0a0a0a]'
-                    : 'bg-[#1c1c1c] text-[#a8a8a8] border border-[#2a2a2a] hover:bg-[#2e2e2e]'
-                }`}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Generate */}
@@ -413,14 +418,11 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
             <button
               type="button"
               onClick={handleGenerate}
-              disabled={isGenerating || !canGenerate}
+              disabled={isGenerating}
               className="w-full rounded-none bg-[#e8c547] px-4 py-3 font-medium text-[#0a0a0a] hover:bg-[#f5d76a] disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#e8c547]/50 focus:ring-offset-2 focus:ring-offset-[#0a0a0a]"
             >
               {isGenerating ? 'Analyzing…' : 'Find my weak link'}
             </button>
-            {!hasExperience && hasEnoughLifts && hasBodyweight && (
-              <p className="mt-2 text-center text-xs text-[#e8c547]">Select your strength level above to continue.</p>
-            )}
             <p className="mt-2 text-center text-xs text-[#555]">
               For information only — not medical advice. Use your head.
             </p>
