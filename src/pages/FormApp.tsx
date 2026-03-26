@@ -167,7 +167,7 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
       units: form.units,
       bodyweight: form.bodyweight,
       gender: form.gender,
-      experience: form.experience,
+      experience: form.experience ?? 'Intermediate',
       training_frequency: form.training_frequency,
       primary_goal: form.primary_goal,
       equipment: form.equipment,
@@ -342,13 +342,13 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
         </div>
 
         {/* Gender — used for van den Hoek / Kilgore reference tables */}
-        <div className="mb-8">
-          <p className="mb-2 text-xs font-medium text-[#a8a8a8]">Gender</p>
-          <div className="flex flex-wrap gap-4">
+        <fieldset className="mb-8 border-0 p-0">
+          <legend className="text-sm font-medium text-[#e8e5df] mb-3">Gender</legend>
+          <div className="flex flex-wrap gap-6">
             {GENDER_OPTIONS.map(({ value, label }) => (
               <label
                 key={value}
-                className="flex cursor-pointer items-center gap-2 text-sm font-medium text-[#a8a8a8]"
+                className="flex cursor-pointer items-center gap-2 text-sm text-[#e8e5df]"
               >
                 <input
                   type="radio"
@@ -365,7 +365,7 @@ export default function FormApp({ onRetestReportGenerated }: { onRetestReportGen
           <p className="mt-2 text-[11px] text-[#555]">
             Used to place you in the right weight-class norms. “Prefer not to say” uses male reference curves.
           </p>
-        </div>
+        </fieldset>
 
         {/* Lifts (2x2 on tablet+) */}
         <div className="mb-8 grid grid-cols-1 gap-5 md:grid-cols-2">

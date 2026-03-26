@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf'
 import type { FormState, DiagnosticResult } from './types'
-import { IDEAL_RATIOS, getIdealRangeForGoal, getHeadlineDiagnosis, getPercentileBand } from './calculations'
+import { IDEAL_RATIOS, getIdealRangeForGoal, getHeadlineDiagnosis } from './calculations'
 import { formatKg } from './units'
 
 const DISCLAIMER =
@@ -225,9 +225,8 @@ export function generateReportPDF(
   }
 
   const hero = result.heroScore
-  const cohortBand = getPercentileBand(hero.rawPercentile)
   const expUpper = form.experience != null ? `${form.experience.toUpperCase()} STANDARDS` : 'YOUR STANDARDS'
-  const heroTitle = `${hero.rawPercentile}${ordinalSuffix(hero.rawPercentile)} percentile (${expUpper})`
+  const heroTitle = `${hero.displayedScore}${ordinalSuffix(hero.displayedScore)} percentile (${expUpper})`
   const weakLiftWord = (() => {
     const w = hero.weakestLift
     if (!w) return 'your weak link'
@@ -239,7 +238,7 @@ export function generateReportPDF(
   })()
 
   const heroLines: string[] = []
-  heroLines.push(`Band: ${cohortBand} — among lifters in your experience bracket.`)
+  heroLines.push(`Band: ${hero.band} — balance-adjusted cohort placement.`)
   if (result.secondaryPercentile != null) {
     heroLines.push(
       `Projected vs next standard: ${result.secondaryPercentile.percentile}${ordinalSuffix(result.secondaryPercentile.percentile)} percentile (${result.secondaryPercentile.standardsLabel}).`
@@ -248,8 +247,11 @@ export function generateReportPDF(
   if (form.gender === 'prefer_not_to_say') {
     heroLines.push('Note: Tables use male reference until Male or Female is selected in the app.')
   }
-  if (hero.balancePenalty > 0 && hero.weakestLift) {
-    heroLines.push(`Imbalance penalty: ${weakLiftWord} drags the profile ~${hero.penaltyPoints} points vs an even lift profile.`)
+  if (hero.penaltyPoints > 0 && hero.weakestLift) {
+    const climb = Math.min(100, hero.displayedScore + hero.penaltyPoints)
+    heroLines.push(
+      `Gap across lifts costing ~${hero.penaltyPoints} balance points (${weakLiftWord}). Fix it and climb toward ${climb}${ordinalSuffix(climb)} percentile.`
+    )
   }
   if (result.oneLineDiagnosis) {
     heroLines.push(result.oneLineDiagnosis)
@@ -288,7 +290,7 @@ export function generateReportPDF(
   doc.setFont(pdfFontName, 'bold')
   doc.setFontSize(FONT.small)
   setAccent(doc)
-  doc.text(cohortBand, heroX + PAD, ty, { baseline: 'top' })
+  doc.text(hero.band, heroX + PAD, ty, { baseline: 'top' })
   ty += LINE_HEIGHT_SMALL + 1
 
   doc.setFont(pdfFontName, 'normal')
@@ -351,7 +353,7 @@ export function generateReportPDF(
   doc.setFontSize(FONT.tiny)
   setMuted(doc)
   const methodLines = doc.splitTextToSize(
-    'Percentiles: van den Hoek et al. (2024) IPF ratios (SBD) + Kilgore OHP anchors; Beginner/Intermediate tiers scale Advanced by 0.60/0.80. DOI 10.1016/j.jsams.2024.07.005',
+    'Strength standards: van den Hoek et al. (2024) IPF drug-tested ratios (squat, bench, deadlift); overhead press uses Kilgore (2023) coaching anchors (not scaled by experience). Beginner/Intermediate scale SBD Advanced anchors by 0.60/0.80. https://doi.org/10.1016/j.jsams.2024.07.005',
     CONTENT_W
   )
   doc.text(methodLines, MARGIN, y)

@@ -61,3 +61,18 @@ select option {
   background-color: #1c1c1c;
   color: #f5f2ec;
 }
+
+@keyframes email-capture-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.email-capture-reveal {
+  animation: email-capture-in 0.45s ease-out both;
+}

@@ -781,7 +781,8 @@ function exerciseToLiftId(exercise: string): 'squat' | 'bench' | 'deadlift' | 'p
 }
 
 /**
- * Single-lift percentile vs experience-stratified standards (van den Hoek 2024 + Kilgore OHP, scaled for Beginner/Intermediate).
+ * Single-lift percentile vs standards (van den Hoek 2024 SBD + Kilgore OHP).
+ * Beginner/Intermediate scale van den Hoek anchors only; OHP uses fixed Kilgore ratios.
  */
 export function calculatePercentile(
   exercise: string,

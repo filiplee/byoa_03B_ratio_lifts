@@ -1,8 +1,14 @@
 /**
- * Stratified strength standards for percentile lookup.
- * Advanced tier: van den Hoek et al. (2024) IPF ratios (squat/bench/deadlift) +
- * Kilgore-style OHP anchors (press). Beginner/Intermediate tiers scale Advanced
- * thresholds by 0.60 and 0.80 respectively (Kilgore progression heuristic).
+ * Strength standards for percentile lookup.
+ *
+ * - Squat, Bench, Deadlift: van den Hoek et al. (2024) IPF drug-tested data
+ *   stratified by IPF weight class, then interpolated for Beginner (60%) and
+ *   Intermediate (80%) cohorts.
+ * - Overhead Press: Kilgore (2023) coaching standards, separate from van den Hoek.
+ *   OHP anchors are not scaled by experience tier (same curve for all levels).
+ *
+ * Export: getAnchorsForLiftAndExperience(liftId, gender, bodyweightKg, experience)
+ *         → { p10, p25, p50, p75, p90 } for use with interpolatePercentile()
  */
 
 import { VAN_DEN_HOEK_THRESHOLDS } from './van_den_hoek_thresholds'
@@ -138,6 +144,9 @@ export function getAnchorsForLiftAndExperience(
           : 'Overhead Press'
 
   const base = advancedAnchorsForLift(exercise, sex, bodyweightKg)
+  if (liftId === 'press') {
+    return base
+  }
   const factor = tier === 'Advanced' ? 1 : tier === 'Intermediate' ? 0.8 : 0.6
   return scaleAnchors(base, factor)
 }
@@ -178,11 +187,12 @@ function buildTierTable(scale: number): StrengthStandardRow[] {
   for (const b of MALE_BRACKETS) {
     for (const exercise of ALL_EXERCISES) {
       const base = advancedAnchorsForLift(exercise, 'male', b.midKg)
+      const effectiveScale = exercise === 'Overhead Press' ? 1 : scale
       rows.push({
         exercise,
         sex: 'Male',
         bodyweightRange: b.range,
-        percentiles: anchorsToPercentileMap(scaleAnchors(base, scale)),
+        percentiles: anchorsToPercentileMap(scaleAnchors(base, effectiveScale)),
       })
     }
   }
@@ -190,11 +200,12 @@ function buildTierTable(scale: number): StrengthStandardRow[] {
   for (const b of FEMALE_BRACKETS) {
     for (const exercise of ALL_EXERCISES) {
       const base = advancedAnchorsForLift(exercise, 'female', b.midKg)
+      const effectiveScale = exercise === 'Overhead Press' ? 1 : scale
       rows.push({
         exercise,
         sex: 'Female',
         bodyweightRange: b.range,
-        percentiles: anchorsToPercentileMap(scaleAnchors(base, scale)),
+        percentiles: anchorsToPercentileMap(scaleAnchors(base, effectiveScale)),
       })
     }
   }

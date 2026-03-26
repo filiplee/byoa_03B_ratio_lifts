@@ -66,15 +66,6 @@ function ordinalSuffix(n: number): string {
   return 'th'
 }
 
-/** Short label for hero copy, e.g. "Bench Press" → "bench" */
-function weakLiftHeroPhrase(fullName: string): string {
-  if (fullName === 'Bench Press') return 'bench'
-  if (fullName === 'Squat') return 'squat'
-  if (fullName === 'Deadlift') return 'deadlift'
-  if (fullName === 'Overhead Press') return 'overhead press'
-  return fullName.toLowerCase()
-}
-
 function getFlagCategory(flagId: RatioFlagId): FlagCategory {
   if (flagId.startsWith('typical_')) return 'balanced'
   if (LAGGING_FLAG_IDS.includes(flagId)) return 'lagging'
@@ -131,6 +122,7 @@ export function ResultCard({ form, result, onSaveScenario, onRetest }: ResultCar
   const [saveLinkBusy, setSaveLinkBusy] = useState(false)
   const [waitlistEmail, setWaitlistEmail] = useState('')
   const [waitlistBusy, setWaitlistBusy] = useState(false)
+  const [showEmailCapture, setShowEmailCapture] = useState(false)
 
   const showToast = (message: string) => {
     setToast(message)
@@ -146,6 +138,16 @@ export function ResultCard({ form, result, onSaveScenario, onRetest }: ResultCar
   useEffect(() => {
     if (prescriptionEmail) setWaitlistEmail(prescriptionEmail)
   }, [prescriptionEmail])
+
+  useEffect(() => {
+    if (prescriptionEmail) {
+      setShowEmailCapture(false)
+      return
+    }
+    setShowEmailCapture(false)
+    const timeout = window.setTimeout(() => setShowEmailCapture(true), 1500)
+    return () => window.clearTimeout(timeout)
+  }, [prescriptionEmail, result])
 
   const handleJoinWaitlist = (e: FormEvent) => {
     e.preventDefault()
@@ -518,9 +520,9 @@ export function ResultCard({ form, result, onSaveScenario, onRetest }: ResultCar
         <h3 className="text-xs font-medium uppercase tracking-wide text-[#888]">About these percentiles</h3>
         <p className="mt-2 text-[11px] leading-relaxed text-[#888]">
           Strength standards are adapted from van den Hoek et al. (2024) drug-tested IPF powerlifting data (squat, bench,
-          deadlift) and Kilgore-style overhead press anchors. Beginner and Intermediate tiers scale those ratios by 0.60
-          and 0.80 so percentiles stay meaningful by training age. Percentiles are relative to your selected cohort and body
-          weight.
+          deadlift) and Kilgore (2023) overhead press anchors. Beginner and Intermediate tiers scale squat, bench, and
+          deadlift ratios by 0.60 and 0.80; overhead press uses the same Kilgore curve at every experience level. Percentiles
+          are relative to your selected cohort and body weight.
         </p>
         <a
           href="https://doi.org/10.1016/j.jsams.2024.07.005"
@@ -704,10 +706,40 @@ export function ResultCard({ form, result, onSaveScenario, onRetest }: ResultCar
           )}
         </div>
 
+        {liftPercentiles.length > 0 && (
+          <div>
+            <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-[#b0b0b0]">
+              Lift percentiles vs cohort
+            </h3>
+            <div className="space-y-3">
+              {liftPercentiles.map((lp) => (
+                <div
+                  key={lp.id}
+                  className="rounded-none border border-[#2a2a2a] bg-[#111111] px-4 py-3"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="text-sm font-medium text-[#e8e5df]">{lp.name}</span>
+                    <span className="text-sm text-[#5eead4]">
+                      {lp.percentile}
+                      {ordinalSuffix(lp.percentile)} percentile · {lp.ratioBW.toFixed(2)}× BW
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-[#888]">{lp.band}</p>
+                  {lp.id === 'press' && (
+                    <p className="mt-1 text-[10px] text-[#888]">
+                      <span className="text-[#5eead4]">Standards:</span> Kilgore (2023)
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
       </div>
 
-      {!prescriptionEmail && (
-        <section className="mb-6 rounded-none border border-[#2a2a2a] bg-[#111111] p-4">
+      {!prescriptionEmail && showEmailCapture && (
+        <section className="email-capture-reveal mb-6 rounded-none border border-[#2a2a2a] bg-[#111111] p-4">
           <h3 className="text-sm font-medium text-[#e8e5df]">Unlock your personalised prescription</h3>
           <p className="mt-1 text-sm font-light text-[#b0b0b0]">
             Enter your email to see your specific exercises, sets, reps, and suggested weights.
